@@ -61,11 +61,9 @@ public final class ContractError implements ABIObject {
 
     @Override
     public boolean equals(Object o) {
-        if (o instanceof ContractError) {
-            ContractError that = (ContractError) o;
-            return name.equals(that.name) && inputs.equals(that.inputs);
-        }
-        return false;
+        return o instanceof ContractError that
+                && this.name.equals(that.name)
+                && this.inputs.equals(that.inputs);
     }
 
     public static ContractError fromJson(String errorJson) {

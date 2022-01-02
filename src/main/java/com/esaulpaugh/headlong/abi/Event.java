@@ -90,13 +90,11 @@ public final class Event implements ABIObject {
 
     @Override
     public boolean equals(Object o) {
-        if(o == this) return true;
-        if(!(o instanceof Event)) return false;
-        Event other = (Event) o;
-        return other.anonymous == this.anonymous
-                && other.name.equals(this.name)
-                && other.inputs.equals(this.inputs)
-                && Arrays.equals(other.indexManifest, this.indexManifest);
+        return o instanceof Event that
+                && this.anonymous == that.anonymous
+                && this.name.equals(that.name)
+                && this.inputs.equals(that.inputs)
+                && Arrays.equals(this.indexManifest, that.indexManifest);
     }
 
     public static Event fromJson(String eventJson) {

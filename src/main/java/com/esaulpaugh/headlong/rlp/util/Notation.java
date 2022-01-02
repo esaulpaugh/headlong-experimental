@@ -203,7 +203,7 @@ public final class Notation {
 
     @Override
     public boolean equals(Object o) {
-        return o instanceof Notation && (((Notation) o).value).equals(this.value);
+        return o instanceof Notation that && this.value.equals(that.value);
     }
 
     @Override

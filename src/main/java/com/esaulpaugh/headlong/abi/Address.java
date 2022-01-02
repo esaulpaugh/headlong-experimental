@@ -50,11 +50,7 @@ public final class Address {
 
     @Override
     public boolean equals(Object o) {
-        if(o instanceof Address) {
-            Address other = (Address) o;
-            return value.equals(other.value);
-        }
-        return false;
+        return o instanceof Address that && this.value.equals(that.value);
     }
 
     @Override

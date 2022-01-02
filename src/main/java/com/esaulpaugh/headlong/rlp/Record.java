@@ -196,7 +196,7 @@ public final class Record {
 
     @Override
     public boolean equals(Object o) {
-        return o instanceof Record && ((Record) o).rlp.equals(this.rlp);
+        return o instanceof Record that && this.rlp.equals(that.rlp);
     }
 
     @Override

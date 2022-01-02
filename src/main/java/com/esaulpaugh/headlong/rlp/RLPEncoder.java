@@ -92,14 +92,14 @@ public final class RLPEncoder {
     }
 
     private static int encodedLen(Object raw) {
-        if (raw instanceof byte[]) {
-            return stringEncodedLen((byte[]) raw);
+        if (raw instanceof byte[] arr) {
+            return stringEncodedLen(arr);
         }
-        if (raw instanceof Iterable<?>) {
-            return listEncodedLen((Iterable<?>) raw);
+        if (raw instanceof Iterable<?> it) {
+            return listEncodedLen(it);
         }
-        if(raw instanceof Object[]) {
-            return listEncodedLen(Arrays.asList((Object[]) raw));
+        if(raw instanceof Object[] arr) {
+            return listEncodedLen(Arrays.asList(arr));
         }
         if(raw == null) {
             throw new NullPointerException();
@@ -117,13 +117,12 @@ public final class RLPEncoder {
     }
 
     private static void encodeItem(Object raw, ByteBuffer bb) {
-        if (raw instanceof byte[]) {
-            encodeString((byte[]) raw, bb);
-        } else if (raw instanceof Iterable<?>) {
-            Iterable<?> elements = (Iterable<?>) raw;
-            encodeList(sumEncodedLen(elements), elements, bb);
-        } else if(raw instanceof Object[]) {
-            Iterable<?> elements = Arrays.asList((Object[]) raw);
+        if (raw instanceof byte[] arr) {
+            encodeString(arr, bb);
+        } else if (raw instanceof Iterable<?> it) {
+            encodeList(sumEncodedLen(it), it, bb);
+        } else if(raw instanceof Object[] arr) {
+            Iterable<?> elements = Arrays.asList(arr);
             encodeList(sumEncodedLen(elements), elements, bb);
         } else if(raw == null) {
             throw new NullPointerException();

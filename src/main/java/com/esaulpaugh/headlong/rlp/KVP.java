@@ -98,7 +98,7 @@ public final class KVP implements Comparable<KVP> {
 
     @Override
     public boolean equals(Object o) {
-        return o == this || (o instanceof KVP && Arrays.equals(((KVP) o).k, this.k));
+        return o instanceof KVP that && Arrays.equals(this.k, that.k);
     }
 
     @Override

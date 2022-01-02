@@ -228,7 +228,7 @@ public abstract sealed class ABIType<J> permits UnitType, ArrayType, TupleType {
 
     @Override
     public final boolean equals(Object o) {
-        return o == this || (o instanceof ABIType && ((ABIType<?>) o).canonicalType.equals(this.canonicalType));
+        return o instanceof ABIType<?> that && this.canonicalType.equals(that.canonicalType);
     }
 
     @Override
