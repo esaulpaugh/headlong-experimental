@@ -42,202 +42,205 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class ABIJSONTest {
 
-    private static final String FUNCTION_A_JSON = "{\n" +
-            "  \"type\": \"function\",\n" +
-            "  \"name\": \"foo\",\n" +
-            "  \"inputs\": [\n" +
-            "    {\n" +
-            "      \"name\": \"complex_nums\",\n" +
-            "      \"type\": \"tuple[][]\",\n" +
-            "      \"components\": [\n" +
-            "        {\n" +
-            "          \"name\": \"real\",\n" +
-            "          \"type\": \"decimal\"\n" +
-            "        },\n" +
-            "        {\n" +
-            "          \"name\": \"imaginary\",\n" +
-            "          \"type\": \"decimal\"\n" +
-            "        }\n" +
-            "      ]\n" +
-            "    }\n" +
-            "  ],\n" +
-            "  \"outputs\": [\n" +
-            "    {\n" +
-            "      \"name\": \"count\",\n" +
-            "      \"type\": \"uint64\"\n" +
-            "    }\n" +
-            "  ],\n" +
-            "  \"constant\": false\n" +
-            "}";
+    private static final String FUNCTION_A_JSON = """
+            {
+              "type": "function",
+              "name": "foo",
+              "inputs": [
+                {
+                  "name": "complex_nums",
+                  "type": "tuple[][]",
+                  "components": [
+                    {
+                      "name": "real",
+                      "type": "decimal"
+                    },
+                    {
+                      "name": "imaginary",
+                      "type": "decimal"
+                    }
+                  ]
+                }
+              ],
+              "outputs": [
+                {
+                  "name": "count",
+                  "type": "uint64"
+                }
+              ],
+              "constant": false
+            }""";
 
-    private static final String FUNCTION_B_JSON = "{\n" +
-            "  \"type\": \"function\",\n" +
-            "  \"name\": \"func\",\n" +
-            "  \"inputs\": [\n" +
-            "    {\n" +
-            "      \"name\": \"aa\",\n" +
-            "      \"type\": \"tuple\",\n" +
-            "      \"components\": [\n" +
-            "        {\n" +
-            "          \"name\": \"aa_d\",\n" +
-            "          \"type\": \"decimal\"\n" +
-            "        },\n" +
-            "        {\n" +
-            "          \"name\": \"aa_f\",\n" +
-            "          \"type\": \"fixed128x18\"\n" +
-            "        }\n" +
-            "      ]\n" +
-            "    },\n" +
-            "    {\n" +
-            "      \"name\": \"bb\",\n" +
-            "      \"type\": \"fixed128x18[]\"\n" +
-            "    },\n" +
-            "    {\n" +
-            "      \"name\": \"cc\",\n" +
-            "      \"type\": \"tuple\",\n" +
-            "      \"components\": [\n" +
-            "        {\n" +
-            "          \"name\": \"cc_uint\",\n" +
-            "          \"type\": \"uint256\"\n" +
-            "        },\n" +
-            "        {\n" +
-            "          \"name\": \"cc_int_arr\",\n" +
-            "          \"type\": \"int256[]\"\n" +
-            "        },\n" +
-            "        {\n" +
-            "          \"name\": \"cc_tuple_arr\",\n" +
-            "          \"type\": \"tuple[]\",\n" +
-            "          \"components\": [\n" +
-            "            {\n" +
-            "              \"type\": \"int8\"\n" +
-            "            },\n" +
-            "            {\n" +
-            "              \"type\": \"uint40\"\n" +
-            "            }\n" +
-            "          ]\n" +
-            "        }\n" +
-            "      ]\n" +
-            "    }\n" +
-            "  ],\n" +
-            "  \"outputs\": [],\n" +
-            "  \"stateMutability\": \"view\",\n" +
-            "  \"constant\": true\n" +
-            "}";
+    private static final String FUNCTION_B_JSON = """
+            {
+              "type": "function",
+              "name": "func",
+              "inputs": [
+                {
+                  "name": "aa",
+                  "type": "tuple",
+                  "components": [
+                    {
+                      "name": "aa_d",
+                      "type": "decimal"
+                    },
+                    {
+                      "name": "aa_f",
+                      "type": "fixed128x18"
+                    }
+                  ]
+                },
+                {
+                  "name": "bb",
+                  "type": "fixed128x18[]"
+                },
+                {
+                  "name": "cc",
+                  "type": "tuple",
+                  "components": [
+                    {
+                      "name": "cc_uint",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "cc_int_arr",
+                      "type": "int256[]"
+                    },
+                    {
+                      "name": "cc_tuple_arr",
+                      "type": "tuple[]",
+                      "components": [
+                        {
+                          "type": "int8"
+                        },
+                        {
+                          "type": "uint40"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "outputs": [],
+              "stateMutability": "view",
+              "constant": true
+            }""";
 
-    private static final String CONTRACT_JSON = "[\n" +
-            "  {\n" +
-            "    \"type\": \"event\",\n" +
-            "    \"name\": \"an_event\",\n" +
-            "    \"inputs\": [\n" +
-            "      {\n" +
-            "        \"name\": \"a\",\n" +
-            "        \"type\": \"bytes\",\n" +
-            "        \"indexed\": true\n" +
-            "      },\n" +
-            "      {\n" +
-            "        \"name\": \"b\",\n" +
-            "        \"type\": \"uint256\",\n" +
-            "        \"indexed\": false\n" +
-            "      }\n" +
-            "    ]\n" +
-            "  },\n" +
-            "  {\n" +
-            "    \"type\": \"function\",\n" +
-            "    \"name\": \"\",\n" +
-            "    \"inputs\": [\n" +
-            "      {\n" +
-            "        \"name\": \"aa\",\n" +
-            "        \"type\": \"tuple\",\n" +
-            "        \"components\": [\n" +
-            "          {\n" +
-            "            \"name\": \"aa_d\",\n" +
-            "            \"type\": \"decimal\"\n" +
-            "          },\n" +
-            "          {\n" +
-            "            \"name\": \"aa_f\",\n" +
-            "            \"type\": \"fixed128x18\"\n" +
-            "          }\n" +
-            "        ]\n" +
-            "      },\n" +
-            "      {\n" +
-            "        \"name\": \"bb\",\n" +
-            "        \"type\": \"fixed128x18[]\"\n" +
-            "      },\n" +
-            "      {\n" +
-            "        \"name\": \"cc\",\n" +
-            "        \"type\": \"tuple\",\n" +
-            "        \"components\": [\n" +
-            "          {\n" +
-            "            \"name\": \"cc_uint\",\n" +
-            "            \"type\": \"uint256\"\n" +
-            "          },\n" +
-            "          {\n" +
-            "            \"name\": \"cc_int_arr\",\n" +
-            "            \"type\": \"int256[]\"\n" +
-            "          },\n" +
-            "          {\n" +
-            "            \"name\": \"cc_tuple_arr\",\n" +
-            "            \"type\": \"tuple[]\",\n" +
-            "            \"components\": [\n" +
-            "              {\n" +
-            "                \"name\": \"cc_tuple_arr_int_eight\",\n" +
-            "                \"type\": \"int8\"\n" +
-            "              },\n" +
-            "              {\n" +
-            "                \"name\": \"cc_tuple_arr_uint_forty\",\n" +
-            "                \"type\": \"uint40\"\n" +
-            "              }\n" +
-            "            ]\n" +
-            "          }\n" +
-            "        ]\n" +
-            "      }\n" +
-            "    ],\n" +
-            "    \"outputs\": [],\n" +
-            "    \"constant\": false\n" +
-            "  }\n" +
-            "]";
+    private static final String CONTRACT_JSON = """
+            [
+              {
+                "type": "event",
+                "name": "an_event",
+                "inputs": [
+                  {
+                    "name": "a",
+                    "type": "bytes",
+                    "indexed": true
+                  },
+                  {
+                    "name": "b",
+                    "type": "uint256",
+                    "indexed": false
+                  }
+                ]
+              },
+              {
+                "type": "function",
+                "name": "",
+                "inputs": [
+                  {
+                    "name": "aa",
+                    "type": "tuple",
+                    "components": [
+                      {
+                        "name": "aa_d",
+                        "type": "decimal"
+                      },
+                      {
+                        "name": "aa_f",
+                        "type": "fixed128x18"
+                      }
+                    ]
+                  },
+                  {
+                    "name": "bb",
+                    "type": "fixed128x18[]"
+                  },
+                  {
+                    "name": "cc",
+                    "type": "tuple",
+                    "components": [
+                      {
+                        "name": "cc_uint",
+                        "type": "uint256"
+                      },
+                      {
+                        "name": "cc_int_arr",
+                        "type": "int256[]"
+                      },
+                      {
+                        "name": "cc_tuple_arr",
+                        "type": "tuple[]",
+                        "components": [
+                          {
+                            "name": "cc_tuple_arr_int_eight",
+                            "type": "int8"
+                          },
+                          {
+                            "name": "cc_tuple_arr_uint_forty",
+                            "type": "uint40"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ],
+                "outputs": [],
+                "constant": false
+              }
+            ]""";
 
-    private static final String FALLBACK_CONSTRUCTOR_RECEIVE = "[\n" +
-            "  {\n" +
-            "    \"type\": \"fallback\",\n" +
-            "    \"stateMutability\": \"pure\",\n" +
-            "    \"constant\": true\n" +
-            "  },\n" +
-            "  {\n" +
-            "    \"type\": \"constructor\",\n" +
-            "    \"inputs\": [\n" +
-            "      {\n" +
-            "        \"name\": \"aha\",\n" +
-            "        \"type\": \"bool\"\n" +
-            "      }\n" +
-            "    ],\n" +
-            "    \"stateMutability\": \"nonpayable\",\n" +
-            "    \"constant\": false\n" +
-            "  },\n" +
-            "  {\n" +
-            "    \"type\": \"receive\",\n" +
-            "    \"name\": \"receive\",\n" +
-            "    \"stateMutability\": \"payable\",\n" +
-            "    \"constant\": false\n" +
-            "  }\n" +
-            "]";
+    private static final String FALLBACK_CONSTRUCTOR_RECEIVE = """
+            [
+              {
+                "type": "fallback",
+                "stateMutability": "pure",
+                "constant": true
+              },
+              {
+                "type": "constructor",
+                "inputs": [
+                  {
+                    "name": "aha",
+                    "type": "bool"
+                  }
+                ],
+                "stateMutability": "nonpayable",
+                "constant": false
+              },
+              {
+                "type": "receive",
+                "name": "receive",
+                "stateMutability": "payable",
+                "constant": false
+              }
+            ]""";
 
     private static void toString(ABIType<?> type, StringBuilder sb) {
         switch (type.typeCode()) {
-        case TYPE_CODE_ARRAY:
+        case TYPE_CODE_ARRAY -> {
             sb.append('[');
             toString(((ArrayType<? extends ABIType<?>, ?>) type).getElementType(), sb);
             sb.append(']');
-            break;
-        case TYPE_CODE_TUPLE:
+        }
+        case TYPE_CODE_TUPLE -> {
             sb.append('(');
-            for(ABIType<?> e : ((TupleType) type).elementTypes()) {
+            for (ABIType<?> e : ((TupleType) type).elementTypes()) {
                 toString(e, sb);
             }
             sb.append(')');
-            break;
-        default:
-            sb.append(type);
+        }
+        default -> sb.append(type);
         }
         sb.append(' ').append(type.getName()).append(',');
     }
