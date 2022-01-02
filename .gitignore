@@ -1,0 +1,14 @@
+/bin
+/build
+/classes
+/out
+/target
+/.gradle
+/.idea
+/.settings
+.classpath
+.navigation
+*.iml
+*.log
+gradle.properties
+headlong.properties

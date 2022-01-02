@@ -1,0 +1,3 @@
+rootProject.name = 'headlong'
+
+//enableFeaturePreview('STABLE_PUBLISHING') // deprecated
