@@ -493,40 +493,44 @@ public class ABIJSONTest {
         assertEquals("a", event.getIndexedParams().get(0).getName());
         assertEquals("b", event.getNonIndexedParams().get(0).getName());
 
-        final String eventJson = "{\n" +
-                "  \"type\": \"event\",\n" +
-                "  \"name\": \"an_event\",\n" +
-                "  \"inputs\": [\n" +
-                "    {\n" +
-                "      \"name\": \"a\",\n" +
-                "      \"type\": \"bytes\",\n" +
-                "      \"indexed\": true\n" +
-                "    },\n" +
-                "    {\n" +
-                "      \"name\": \"b\",\n" +
-                "      \"type\": \"uint256\",\n" +
-                "      \"indexed\": false\n" +
-                "    }\n" +
-                "  ]\n" +
-                "}";
+        final String eventJson = """
+                {
+                  "type": "event",
+                  "name": "an_event",
+                  "inputs": [
+                    {
+                      "name": "a",
+                      "type": "bytes",
+                      "indexed": true
+                    },
+                    {
+                      "name": "b",
+                      "type": "uint256",
+                      "indexed": false
+                    }
+                  ]
+                }""";
+
+        System.out.println(eventJson);
 
         assertEquals(eventJson, event.toJson(true));
     }
     
-    private static final String ERROR_JSON = "{\n" +
-                "  \"type\": \"error\",\n" +
-                "  \"name\": \"InsufficientBalance\",\n" +
-                "  \"inputs\": [\n" +
-                "    {\n" +
-                "      \"name\": \"available\",\n" +
-                "      \"type\": \"uint256\"\n" +
-                "    },\n" +
-                "    {\n" +
-                "      \"name\": \"required\",\n" +
-                "      \"type\": \"uint256\"\n" +
-                "    }\n" +
-                "  ]\n" +
-                "}";
+    private static final String ERROR_JSON = """
+            {
+              "type": "error",
+              "name": "InsufficientBalance",
+              "inputs": [
+                {
+                  "name": "available",
+                  "type": "uint256"
+                },
+                {
+                  "name": "required",
+                  "type": "uint256"
+                }
+              ]
+            }""";
     
     private static final String ERROR_JSON_ARRAY = "[" + ERROR_JSON + "]";
 
@@ -676,19 +680,19 @@ public class ABIJSONTest {
         List<Event> events = objects.stream()
                 .filter(ABIObject::isEvent)
                 .map(ABIObject::asEvent)
-                .collect(Collectors.toList());
+                .toList();
         assertEquals(1, events.size());
 
         List<ContractError> errors = objects.stream()
                 .filter(ABIObject::isContractError)
                 .map(ABIObject::asContractError)
-                .collect(Collectors.toList());
+                .toList();
         assertEquals(0, errors.size());
 
         List<ABIType<?>> flat = objects.stream()
                 .map(ABIObject::getInputs)
                 .flatMap(ABIJSONTest::flatten)
-                .collect(Collectors.toList());
+                .toList();
 
         assertEquals(8, flat.size());
     }
