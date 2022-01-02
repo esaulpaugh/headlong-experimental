@@ -202,16 +202,12 @@ public final class ArrayType<E extends ABIType<?>, J> extends ABIType<J> {
     @Override
     void encodeTail(Object value, ByteBuffer dest) {
         switch (elementType.typeCode()) {
-        case TYPE_CODE_BOOLEAN: encodeBooleans((boolean[]) value, dest); return;
-        case TYPE_CODE_BYTE: encodeBytes(decodeIfString(value), dest); return;
-        case TYPE_CODE_INT: encodeInts((int[]) value, dest); return;
-        case TYPE_CODE_LONG: encodeLongs((long[]) value, dest); return;
-        case TYPE_CODE_BIG_INTEGER:
-        case TYPE_CODE_BIG_DECIMAL:
-        case TYPE_CODE_ARRAY:
-        case TYPE_CODE_TUPLE:
-        case TYPE_CODE_ADDRESS: encodeObjects((Object[]) value, dest); return;
-        default: throw new AssertionError();
+        case TYPE_CODE_BOOLEAN -> encodeBooleans((boolean[]) value, dest);
+        case TYPE_CODE_BYTE -> encodeBytes(decodeIfString(value), dest);
+        case TYPE_CODE_INT -> encodeInts((int[]) value, dest);
+        case TYPE_CODE_LONG -> encodeLongs((long[]) value, dest);
+        case TYPE_CODE_BIG_INTEGER, TYPE_CODE_BIG_DECIMAL, TYPE_CODE_ARRAY, TYPE_CODE_TUPLE, TYPE_CODE_ADDRESS -> encodeObjects((Object[]) value, dest);
+        default -> throw new AssertionError();
         }
     }
 
@@ -257,20 +253,16 @@ public final class ArrayType<E extends ABIType<?>, J> extends ABIType<J> {
     @Override
     void encodePackedUnchecked(J value, ByteBuffer dest) {
         switch (elementType.typeCode()) {
-        case TYPE_CODE_BOOLEAN: encodeBooleansPacked((boolean[]) value, dest); return;
-        case TYPE_CODE_BYTE: dest.put(decodeIfString(value)); return;
-        case TYPE_CODE_INT: encodeIntsPacked((int[]) value, elementType.byteLengthPacked(null), dest); return;
-        case TYPE_CODE_LONG: encodeLongsPacked((long[]) value, elementType.byteLengthPacked(null), dest); return;
-        case TYPE_CODE_BIG_INTEGER:
-        case TYPE_CODE_BIG_DECIMAL:
-        case TYPE_CODE_ARRAY:
-        case TYPE_CODE_TUPLE:
-        case TYPE_CODE_ADDRESS:
-            for(Object e : (Object[]) value) {
+        case TYPE_CODE_BOOLEAN -> encodeBooleansPacked((boolean[]) value, dest);
+        case TYPE_CODE_BYTE -> dest.put(decodeIfString(value));
+        case TYPE_CODE_INT -> encodeIntsPacked((int[]) value, elementType.byteLengthPacked(null), dest);
+        case TYPE_CODE_LONG -> encodeLongsPacked((long[]) value, elementType.byteLengthPacked(null), dest);
+        case TYPE_CODE_BIG_INTEGER, TYPE_CODE_BIG_DECIMAL, TYPE_CODE_ARRAY, TYPE_CODE_TUPLE, TYPE_CODE_ADDRESS -> {
+            for (Object e : (Object[]) value) {
                 elementType.encodeObjectPackedUnchecked(e, dest);
             }
-            return;
-        default: throw new AssertionError();
+        }
+        default -> throw new AssertionError();
         }
     }
 

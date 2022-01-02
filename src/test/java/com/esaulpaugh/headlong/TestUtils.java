@@ -70,15 +70,15 @@ public class TestUtils {
     public static long pickRandom(Random r, int byteLen, boolean unsigned) {
         long val = r.nextLong();
         switch (byteLen) {
-        case 1: val &= 0xFFL; break;
-        case 2: val &= 0xFFFFL; break;
-        case 3: val &= 0xFFFFFFL; break;
-        case 4: val &= 0xFFFFFFFFL; break;
-        case 5: val &= 0xFFFFFFFFFFL; break;
-        case 6: val &= 0xFFFFFFFFFFFFL; break;
-        case 7: val &= 0xFFFFFFFFFFFFFFL; break;
-        case 8: break;
-        default: throw new IllegalArgumentException("byteLen out of range");
+        case 1 -> val &= 0xFFL;
+        case 2 -> val &= 0xFFFFL;
+        case 3 -> val &= 0xFFFFFFL;
+        case 4 -> val &= 0xFFFFFFFFL;
+        case 5 -> val &= 0xFFFFFFFFFFL;
+        case 6 -> val &= 0xFFFFFFFFFFFFL;
+        case 7 -> val &= 0xFFFFFFFFFFFFFFL;
+        case 8 -> {}
+        default -> throw new IllegalArgumentException("byteLen out of range");
         }
         if(unsigned) {
             return val < 0 ? ~val : val;

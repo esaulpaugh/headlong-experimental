@@ -376,13 +376,13 @@ public class MonteCarloTestCase implements Serializable {
         final int mod = Integers.mod(type.bitLength, Byte.SIZE);
         if(mod != 0) {
             switch (mod) {
-            case 1: magnitude[0] &= 0b0000_0001; break;
-            case 2: magnitude[0] &= 0b0000_0011; break;
-            case 3: magnitude[0] &= 0b0000_0111; break;
-            case 4: magnitude[0] &= 0b0000_1111; break;
-            case 5: magnitude[0] &= 0b0001_1111; break;
-            case 6: magnitude[0] &= 0b0011_1111; break;
-            case 7: magnitude[0] &= 0b0111_1111;
+            case 1 -> magnitude[0] &= 0b0000_0001;
+            case 2 -> magnitude[0] &= 0b0000_0011;
+            case 3 -> magnitude[0] &= 0b0000_0111;
+            case 4 -> magnitude[0] &= 0b0000_1111;
+            case 5 -> magnitude[0] &= 0b0001_1111;
+            case 6 -> magnitude[0] &= 0b0011_1111;
+            case 7 -> magnitude[0] &= 0b0111_1111;
             }
         }
         boolean zero = true;
