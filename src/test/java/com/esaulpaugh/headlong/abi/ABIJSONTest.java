@@ -26,7 +26,6 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -674,7 +673,7 @@ public class ABIJSONTest {
         List<Function> functions = objects.stream()
                 .filter(ABIObject::isFunction)
                 .map(ABIObject::asFunction)
-                .collect(Collectors.toList());
+                .toList();
         assertEquals(1, functions.size());
 
         List<Event> events = objects.stream()
