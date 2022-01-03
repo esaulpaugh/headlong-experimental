@@ -18,7 +18,6 @@ package com.esaulpaugh.headlong.abi;
 import com.esaulpaugh.headlong.TestUtils;
 import com.esaulpaugh.headlong.abi.util.Uint;
 import com.esaulpaugh.headlong.abi.util.WrappedKeccak;
-import com.esaulpaugh.headlong.util.FastHex;
 import com.esaulpaugh.headlong.util.Strings;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Disabled;
