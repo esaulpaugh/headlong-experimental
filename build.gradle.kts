@@ -5,7 +5,7 @@ import java.time.format.DateTimeFormatter
 plugins {
     id("java-library")
     id("maven-publish")
-    id("me.champeau.gradle.jmh") version "0.5.3"
+    id("me.champeau.jmh") version "0.6.6"
 }
 
 group = "com.esaulpaugh"
@@ -83,4 +83,6 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter-api:$junitVersion")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:$junitVersion")
     testImplementation("org.bouncycastle:bcprov-jdk15on:$bcVersion")
+
+    jmh("commons-codec:commons-codec:1.15")
 }
