@@ -32,7 +32,7 @@ import java.util.Arrays;
  *
  * Created by Evo on 1/19/2017.
  */
-public abstract class RLPItem {
+public abstract sealed class RLPItem permits RLPString, RLPList {
 
     public static final RLPItem[] EMPTY_ARRAY = new RLPItem[0];
 
