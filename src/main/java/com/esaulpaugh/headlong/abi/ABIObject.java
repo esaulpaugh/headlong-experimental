@@ -19,7 +19,7 @@ import com.esaulpaugh.headlong.abi.util.JsonUtils;
 import com.google.gson.JsonObject;
 
 /** Supertype of json-encodeable types {@link Function}, {@link Event}, and {@link ContractError}.*/
-public interface ABIObject {
+public sealed interface ABIObject permits Function, Event, ContractError {
 
     TypeEnum getType();
 
