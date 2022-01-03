@@ -20,10 +20,7 @@ import com.google.gson.JsonObject;
 
 import java.util.Objects;
 
-public final class ContractError implements ABIObject {
-
-    private final String name;
-    private final TupleType inputs;
+public record ContractError(String name, TupleType inputs) implements ABIObject {
 
     public ContractError(String name, TupleType inputs) {
         this.name = Objects.requireNonNull(name);
@@ -52,18 +49,6 @@ public final class ContractError implements ABIObject {
 
     public Function function() {
         return Function.parse(getCanonicalSignature());
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(name, inputs);
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        return o instanceof ContractError that
-                && this.name.equals(that.name)
-                && this.inputs.equals(that.inputs);
     }
 
     public static ContractError fromJson(String errorJson) {
