@@ -71,19 +71,19 @@ public class MonteCarloTest {
 
     private static int count(Object o) {
         int x = 0;
-        if(o instanceof Object[]) {
-            for(Object e : (Object[]) o) {
+        if(o instanceof Object[] arr) {
+            for(Object e : arr) {
                 x += count(e);
             }
-        } else if(o instanceof Iterable) {
-            for(Object e : (Iterable<?>) o) {
+        } else if(o instanceof Iterable it) {
+            for(Object e : it) {
                 x += count(e);
             }
         } else if(o instanceof Number) {
-            if(o instanceof BigInteger) {
-                x += ((BigInteger) o).toByteArray().length;
-            } else if(o instanceof BigDecimal) {
-                x += ((BigDecimal) o).unscaledValue().toByteArray().length;
+            if(o instanceof BigInteger c) {
+                x += c.toByteArray().length;
+            } else if(o instanceof BigDecimal c) {
+                x += c.unscaledValue().toByteArray().length;
             } else if(o instanceof Integer) {
                 x += Integer.BYTES;
             } else if(o instanceof Long) {

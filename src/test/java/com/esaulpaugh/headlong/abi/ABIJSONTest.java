@@ -697,8 +697,8 @@ public class ABIJSONTest {
     }
 
     public static Stream<ABIType<?>> flatten(ABIType<?> type) {
-        return type instanceof TupleType
-                ? StreamSupport.stream(((TupleType) type).spliterator(), false)
+        return type instanceof TupleType tupleType
+                ? StreamSupport.stream(tupleType.spliterator(), false)
                     .flatMap(ABIJSONTest::flatten)
                 : Stream.of(type);
     }

@@ -151,12 +151,10 @@ public class TupleTest {
 
     private static void replace(Object[] parent, int index) {
         Object element = parent[index];
-        if(element instanceof Object[]) {
-            Object[] eArr = (Object[]) element;
+        if(element instanceof Object[] eArr) {
             if(eArr.length > 0) {
                 Object inner = parent[index];
-                if(inner instanceof Object[]) {
-                    Object[] innerArr = (Object[]) inner;
+                if(inner instanceof Object[] innerArr) {
                     if(innerArr.length > 0) {
                         innerArr[innerArr.length - 1] = null;
                         return;

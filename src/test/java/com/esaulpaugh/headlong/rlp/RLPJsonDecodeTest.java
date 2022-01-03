@@ -73,9 +73,9 @@ public class RLPJsonDecodeTest {
     private static void elementsRecursive(RLPList list, Collection<Object> results, RLPDecoder decoder) {
         List<RLPItem> actualList = list.elements(decoder);
         for (RLPItem element : actualList) {
-            if(element instanceof RLPList) {
+            if(element instanceof RLPList listElement) {
                 List<Object> subList = new ArrayList<>();
-                elementsRecursive((RLPList) element, subList, decoder);
+                elementsRecursive(listElement, subList, decoder);
                 results.add(subList);
             } else {
                 results.add(element);
