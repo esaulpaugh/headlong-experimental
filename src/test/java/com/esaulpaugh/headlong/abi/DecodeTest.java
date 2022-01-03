@@ -28,6 +28,8 @@ import java.nio.ByteBuffer;
 import java.util.regex.Pattern;
 
 import static com.esaulpaugh.headlong.TestUtils.assertThrown;
+import static com.esaulpaugh.headlong.TestUtils.decodeHex;
+import static com.esaulpaugh.headlong.TestUtils.removeWhitespace;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -36,16 +38,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 public class DecodeTest {
 
     private static final Function FUNCTION = new Function("gogo((fixed[],int8)[1][][5])", "(ufixed,string)");
-
-    private static final Pattern WHITESPACE = Pattern.compile("[ \\n]");
-
-    private static String removeWhitespace(String textBlock) {
-        return WHITESPACE.matcher(textBlock).replaceAll("");
-    }
-
-    private static byte[] decodeHex(String textBlock) {
-        return FastHex.decode(removeWhitespace(textBlock));
-    }
 
     private static final byte[] RETURN_BYTES = decodeHex("""
                     0000000000000000000000000000000000000000000000000000000000000045

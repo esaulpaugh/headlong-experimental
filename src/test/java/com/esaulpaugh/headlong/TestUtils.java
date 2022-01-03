@@ -16,6 +16,7 @@
 package com.esaulpaugh.headlong;
 
 import com.esaulpaugh.headlong.abi.Address;
+import com.esaulpaugh.headlong.util.FastHex;
 import com.esaulpaugh.headlong.util.Integers;
 import com.esaulpaugh.headlong.util.Strings;
 import com.google.gson.JsonArray;
@@ -35,6 +36,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RecursiveAction;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.regex.Pattern;
 
 public class TestUtils {
 
@@ -382,5 +384,15 @@ public class TestUtils {
         case 0: return n;
         default: throw new IllegalArgumentException("n is out of range: " + n);
         }
+    }
+
+    private static final Pattern WHITESPACE = Pattern.compile("[ \\n]");
+
+    public static String removeWhitespace(String textBlock) {
+        return WHITESPACE.matcher(textBlock).replaceAll("");
+    }
+
+    public static byte[] decodeHex(String textBlock) {
+        return FastHex.decode(removeWhitespace(textBlock));
     }
 }
