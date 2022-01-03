@@ -251,18 +251,15 @@ public class DecodeTest {
 
     @Test
     public void testCorruptBoolean() throws Throwable {
-        Function f = new Function("baz(uint32,bool)");
-        Tuple argsTuple = new Tuple(69L, true);
-        ByteBuffer one = f.encodeCall(argsTuple);
-
-        final byte[] array = one.array();
+        final Function f = new Function("baz(uint32,bool)");
+        final Tuple argsTuple = new Tuple(69L, true);
+        final byte[] array = f.encodeCall(argsTuple).array();
 
         System.out.println(Function.formatCall(array));
 
         array[array.length - 1] = 0;
         System.out.println(Function.formatCall(array));
-        Tuple decoded = f.decodeCall(array);
-        assertNotEquals(decoded, argsTuple);
+        assertNotEquals(argsTuple, f.decodeCall(array));
 
         array[array.length - 32] = (byte) 0x80;
         System.out.println(Function.formatCall(array));
@@ -278,17 +275,14 @@ public class DecodeTest {
 
     @Test
     public void testCorruptBooleanArray() throws Throwable {
-        Function f = new Function("baz(bool[])");
-        Tuple argsTuple = new Tuple((Object) new boolean[] { true });
-        ByteBuffer one = f.encodeCall(argsTuple);
-
-        final byte[] array = one.array();
+        final Function f = new Function("baz(bool[])");
+        final Tuple argsTuple = new Tuple((Object) new boolean[] { true });
+        final byte[] array = f.encodeCall(argsTuple).array();
 
 //        System.out.println(Function.formatCall(array));
 
         array[array.length - 1] = 0;
-        Tuple decoded = f.decodeCall(array);
-        assertNotEquals(decoded, argsTuple);
+        assertNotEquals(argsTuple, f.decodeCall(array));
 
         array[array.length - 1] = 2;
         assertThrown(IllegalArgumentException.class, "illegal boolean value @ 68", () -> f.decodeCall(array));
