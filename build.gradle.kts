@@ -1,6 +1,6 @@
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.TimeZone
+import java.time.ZoneId
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
 
 plugins {
     id("java-library")
@@ -43,11 +43,7 @@ tasks {
     }
 }
 
-fun todayUTC() : String {
-    val sdf = SimpleDateFormat ("MMMMM d yyyy")
-    sdf.timeZone = TimeZone.getTimeZone("UTC")
-    return sdf.format(Date())
-}
+val buildDate : String = ZonedDateTime.now(ZoneId.of("UTC")).format(DateTimeFormatter.ofPattern("MMMM d yyyy z"))
 
 tasks.withType<Jar> {
     manifest {
@@ -55,7 +51,7 @@ tasks.withType<Jar> {
                 Pair<String, Any?>("Implementation-Title", project.name),
                 Pair<String, Any?>("Implementation-Version", project.version),
                 Pair<String, Any?>("Automatic-Module-Name", project.name),
-                Pair<String, Any?>("Build-Date", todayUTC())
+                Pair<String, Any?>("Build-Date", buildDate)
         )
     }
 }
