@@ -382,7 +382,7 @@ public class EncodeTest {
 
         System.out.println(Function.formatCall(one.array())); // a multi-line hex representation
 
-        Tuple decoded = f.decodeCall((ByteBuffer) two.flip());
+        Tuple decoded = f.decodeCall(two.flip());
 
         assertEquals(decoded, args);
     }
@@ -405,7 +405,7 @@ public class EncodeTest {
         Tuple args = Tuple.singleton(new int[] { 0xFF, 1, 1, 2, 0 });
         ByteBuffer two = f.encodeCall(args);
 
-        Tuple decoded = f.decodeCall((ByteBuffer) two.flip());
+        Tuple decoded = f.decodeCall(two.flip());
 
         assertEquals(decoded, args);
     }
@@ -510,8 +510,8 @@ public class EncodeTest {
         byte[] ffff = new byte[len];
         Arrays.fill(ffff, (byte) 0xff);
 
-        ByteBuffer full = (ByteBuffer) ByteBuffer.wrap(ffff).position(7);
-        ByteBuffer empty = (ByteBuffer) ByteBuffer.allocate(len).position(7);
+        ByteBuffer full = ByteBuffer.wrap(ffff).position(7);
+        ByteBuffer empty = ByteBuffer.allocate(len).position(7);
 
         f.encodeCall(args, full)
                 .encodeCall(args, empty);
