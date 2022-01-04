@@ -58,14 +58,14 @@ tasks.withType<Jar>({
 
 publishing({
     publications {
-        create<MavenPublication>("maven") {
+        create<MavenPublication>("maven", {
             groupId = "com.esaulpaugh"
             artifactId = "headlong"
             version = "5.6.2-SNAPSHOT"
             from(components["java"])
             artifact("sourcesJar")
             artifact("javadocJar")
-        }
+        })
     }
 })
 
