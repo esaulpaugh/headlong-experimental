@@ -265,17 +265,10 @@ public abstract sealed class ABIType<J> permits UnitType, ArrayType, TupleType {
     }
 
     static String pad(int leftPadding, String unpadded) {
-        StringBuilder sb = new StringBuilder();
-        pad(sb, leftPadding);
-        sb.append(unpadded);
-        pad(sb, LABEL_PADDED_LEN - sb.length());
-        return sb.toString();
-    }
-
-    private static void pad(StringBuilder sb, int n) {
-        for (int i = 0; i < n; i++) {
-            sb.append(' ');
-        }
+        StringBuilder sb = new StringBuilder(" ".repeat(leftPadding));
+        return sb.append(unpadded)
+                 .append(" ".repeat(LABEL_PADDED_LEN - sb.length()))
+                 .toString();
     }
 
     static String friendlyClassName(Class<?> clazz, int arrayLen) {
