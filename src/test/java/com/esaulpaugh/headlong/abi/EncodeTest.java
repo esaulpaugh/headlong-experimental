@@ -281,13 +281,7 @@ public class EncodeTest {
                         labeled = paddedLabel(String.valueOf(div - 1)) + ffff;
                     } else {
                         String hex = Long.toHexString((div - 1) * UNIT_LENGTH_BYTES);
-                        StringBuilder label = new StringBuilder();
-                        int zeroes = 6 - hex.length();
-                        for (int j = 0; j < zeroes; j++) {
-                            label.append(' ');
-                        }
-                        label.append(hex);
-                        labeled = paddedLabel(label.toString()) + ffff;
+                        labeled = paddedLabel(" ".repeat(6 - hex.length()) + hex) + ffff;
                     }
                     Assertions.assertTrue(formatted.contains(labeled));
                 }
@@ -298,13 +292,7 @@ public class EncodeTest {
     }
 
     private static String paddedLabel(String label) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(label);
-        int n = 9 - sb.length();
-        for (int i = 0; i < n; i++) {
-            sb.append(' ');
-        }
-        return sb.toString();
+        return label + " ".repeat(9 - label.length());
     }
 
     private static final List<String> CLASS_CAST_MESSAGES = Arrays.asList(
