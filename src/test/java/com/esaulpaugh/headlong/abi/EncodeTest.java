@@ -263,27 +263,26 @@ public class EncodeTest {
 
     private static void testFormat(boolean func, java.util.function.Function<byte[], String> format) throws Throwable {
         final int expectedMod = func ? 4 : 0;
-        byte[] master = new byte[260];
+        final byte[] master = new byte[260];
         Arrays.fill(master, (byte) 0xff);
         for (int i = 0; i < 260; i++) {
-            byte[] x = Arrays.copyOfRange(master, 0, i);
-            int mod = i % UNIT_LENGTH_BYTES;
+            final byte[] x = Arrays.copyOfRange(master, 0, i);
+            final int mod = i % UNIT_LENGTH_BYTES;
             if(mod == expectedMod) {
-                String formatted = format.apply(x);
+                final String formatted = format.apply(x);
                 assertEquals(i * 2, formatted.codePoints().filter(ch -> ch == 'f').count());
-                int div = (i - expectedMod) / UNIT_LENGTH_BYTES;
+                final int div = (i - expectedMod) / UNIT_LENGTH_BYTES;
                 if(div > 0) {
-                    String ffff = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
-                    boolean containsFfff = formatted.contains(ffff);
-                    Assertions.assertTrue(containsFfff);
+                    final String ffff = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+                    Assertions.assertTrue(formatted.contains(ffff));
                     final String label;
                     if(func) {
                         label = String.valueOf(div - 1);
                     } else {
-                        String hex = Long.toHexString((div - 1) * UNIT_LENGTH_BYTES);
+                        final String hex = Long.toHexString((div - 1) * UNIT_LENGTH_BYTES);
                         label = " ".repeat(6 - hex.length()) + hex;
                     }
-                    String line = label + " ".repeat(9 - label.length()) + ffff;
+                    final String line = label + " ".repeat(9 - label.length()) + ffff;
                     Assertions.assertTrue(formatted.contains(line));
                 }
             } else {
