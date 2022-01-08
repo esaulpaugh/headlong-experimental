@@ -276,23 +276,20 @@ public class EncodeTest {
                     String ffff = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
                     boolean containsFfff = formatted.contains(ffff);
                     Assertions.assertTrue(containsFfff);
-                    final String labeled;
+                    final String label;
                     if(func) {
-                        labeled = paddedLabel(String.valueOf(div - 1)) + ffff;
+                        label = String.valueOf(div - 1);
                     } else {
                         String hex = Long.toHexString((div - 1) * UNIT_LENGTH_BYTES);
-                        labeled = paddedLabel(" ".repeat(6 - hex.length()) + hex) + ffff;
+                        label = " ".repeat(6 - hex.length()) + hex;
                     }
-                    Assertions.assertTrue(formatted.contains(labeled));
+                    String line = label + " ".repeat(9 - label.length()) + ffff;
+                    Assertions.assertTrue(formatted.contains(line));
                 }
             } else {
                 assertThrown(ILLEGAL, "expected length mod 32 == 0, found: ", () -> format.apply(x));
             }
         }
-    }
-
-    private static String paddedLabel(String label) {
-        return label + " ".repeat(9 - label.length());
     }
 
     private static final List<String> CLASS_CAST_MESSAGES = Arrays.asList(
