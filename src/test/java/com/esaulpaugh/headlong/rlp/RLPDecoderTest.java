@@ -651,8 +651,7 @@ public class RLPDecoderTest {
 
     @Test
     public void testStreaming() {
-        List<RLPItem> collection = RLP_STRICT.stream(RLPStreamTest.RLP_BYTES)
-                .collect(Collectors.toList());
+        List<RLPItem> collection = RLP_STRICT.stream(RLPStreamTest.RLP_BYTES).toList();
 
         String joined = collection.stream()
                 .filter(RLPItem::isList)
@@ -711,7 +710,7 @@ public class RLPDecoderTest {
     public static List<RLPItem> collectN(byte[] encodings, int index, int n) {
         return RLP_STRICT.stream(encodings, index)
                 .limit(n)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     public static int collectAll(byte[] encodings, int index, Collection<? super RLPItem> dest) {
