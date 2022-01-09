@@ -121,13 +121,14 @@ public class AdvancedABICasesTest {
         runCases(JsonUtils.parseArray(TestUtils.readFileResourceAsString(HEADLONG_CASES_PATH)), true);
     }
 
-    private static final String HEADLONG_X = "{\n" +
-            "    \"name\": \"headlong_X\",\n" +
-            "    \"types\": \"[\\\"uint24\\\",\\\"address\\\"]\",\n" +
-            "    \"values\": \"[{\\\"type\\\":\\\"number\\\",\\\"value\\\":\\\"237\\\"},{\\\"type\\\":\\\"string\\\",\\\"value\\\":\\\"0x0000000000000A6E5195B6E7458D14A52989dAA9\\\"}]\",\n" +
-            "    \"result\": \"0x9808bf8500000000000000000000000000000000000000000000000000000000000000ed0000000000000000000000000000000000000a6e5195b6e7458d14a52989daa9\",\n" +
-            "    \"version\": \"5.6.0+commit.6447409\"\n" +
-            "  }";
+    private static final String HEADLONG_X = """
+            {
+                "name": "headlong_X",
+                "types": "[\\"uint24\\",\\"address\\"]",
+                "values": "[{\\"type\\":\\"number\\",\\"value\\":\\"237\\"},{\\"type\\":\\"string\\",\\"value\\":\\"0x0000000000000A6E5195B6E7458D14A52989dAA9\\"}]",
+                "result": "0x9808bf8500000000000000000000000000000000000000000000000000000000000000ed0000000000000000000000000000000000000a6e5195b6e7458d14a52989daa9",
+                "version": "5.6.0+commit.6447409"
+              }""";
 
     @Test
     public void testCase() {

@@ -358,14 +358,7 @@ public class RLPStreamTest {
     }
 
     private static String timestamp(long zero) {
-        double t = (System.nanoTime() - zero) / 1000000.0;
-        String tString = String.valueOf(t);
-        StringBuilder sb = new StringBuilder("t=");
-        sb.append(tString);
-        int n = 10 - tString.length();
-        for (int i = 0; i < n; i++) {
-            sb.append('0');
-        }
-        return sb.toString();
+        String time = String.valueOf((System.nanoTime() - zero) / 1000000.0);
+        return "t=" + time + "0".repeat(10 - time.length());
     }
 }

@@ -295,10 +295,10 @@ public class MonteCarloTestCase implements Serializable {
             String typeStr = generateType(baseTypes, r, tupleDepth).canonicalType;
             if(r.nextBoolean()) {
                 switch (typeStr) {
-                case "int256": typeStr = "int"; break;
-                case "uint256": typeStr = "uint"; break;
-                case "fixed128x18": typeStr = "fixed"; break;
-                case "ufixed128x18": typeStr = "ufixed"; break;
+                case "int256" -> typeStr = "int";
+                case "uint256" -> typeStr = "uint";
+                case "fixed128x18" -> typeStr = "fixed";
+                case "ufixed128x18" -> typeStr = "ufixed";
                 }
             }
             signature.append(typeStr).append(',');
