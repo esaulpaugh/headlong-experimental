@@ -101,26 +101,24 @@ public final class TypeFactory {
 
     @SuppressWarnings("unchecked")
     public static <T extends ABIType<?>> T create(String rawType, String name) {
-        return (T) build(rawType, null, name);
+        return (T) _build(rawType, null)
+                    .setName(name);
     }
 
-    static ABIType<?> build(String rawType, TupleType baseType, String name) {
-        return _build(rawType, baseType)
-                .setName(name);
-    }
-
-    private static ABIType<?> _build(final String rawType, ABIType<?> baseType) {
+    static ABIType<?> _build(final String rawType, ABIType<?> baseType) {
         try {
             final int lastCharIdx = rawType.length() - 1;
             if (rawType.charAt(lastCharIdx) == ']') { // array
-
                 final int secondToLastCharIdx = lastCharIdx - 1;
                 final int arrayOpenIndex = rawType.lastIndexOf('[', secondToLastCharIdx);
-
                 final ABIType<?> elementType = _build(rawType.substring(0, arrayOpenIndex), baseType);
-                final String type = elementType.canonicalType + rawType.substring(arrayOpenIndex);
-                final int length = arrayOpenIndex == secondToLastCharIdx ? DYNAMIC_LENGTH : parseLen(rawType, arrayOpenIndex + 1, lastCharIdx);
-                return new ArrayType<>(type, elementType.arrayClass(), elementType, length, null);
+                return new ArrayType<>(
+                        elementType.canonicalType + rawType.substring(arrayOpenIndex),
+                        elementType.arrayClass(),
+                        elementType,
+                        arrayOpenIndex == secondToLastCharIdx ? DYNAMIC_LENGTH : parseLen(rawType, arrayOpenIndex + 1, lastCharIdx),
+                        null
+                );
             }
             if(baseType != null || (baseType = resolveBaseType(rawType)) != null) {
                 return baseType;
