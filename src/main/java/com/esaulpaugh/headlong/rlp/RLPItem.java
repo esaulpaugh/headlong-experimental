@@ -209,17 +209,17 @@ public abstract sealed class RLPItem permits RLPString, RLPList {
 //        return equals(other.buffer, other.index, other.endIndex);
     }
 
-    private boolean equals(byte[] b, int bIdx, int bEnd) {
-        final int len = this.endIndex - this.index;
-        if(len != bEnd - bIdx) {
-            return false;
-        }
-        for (int i = 0; i < len; i++) {
-            if (this.buffer[this.index + i] != b[bIdx + i])
-                return false;
-        }
-        return true;
-    }
+//    private boolean equals(byte[] b, int bIdx, int bEnd) {
+//        final int len = this.endIndex - this.index;
+//        if(len != bEnd - bIdx) {
+//            return false;
+//        }
+//        for (int i = 0; i < len; i++) {
+//            if (this.buffer[this.index + i] != b[bIdx + i])
+//                return false;
+//        }
+//        return true;
+//    }
 
     @Override
     public final String toString() {
