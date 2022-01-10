@@ -16,6 +16,7 @@
 package com.esaulpaugh.headlong.abi;
 
 import com.esaulpaugh.headlong.TestUtils;
+import com.esaulpaugh.headlong.abi.util.Formatter;
 import com.esaulpaugh.headlong.util.Integers;
 import com.esaulpaugh.headlong.util.Strings;
 import com.esaulpaugh.headlong.util.SuperSerial;
@@ -213,7 +214,7 @@ public class MonteCarloTestCase implements Serializable {
             }
             final Tuple args = this.argsTuple;
             System.err.println(change);
-            System.err.println(function.getInputs() + "\n" + Function.formatCall(babar) + "\nidx=" + idx);
+            System.err.println(function.getInputs() + "\n" + Formatter.formatCall(babar) + "\nidx=" + idx);
             System.err.println(Strings.encode(babar, 0, idx, Strings.HEX));
             System.err.println(SuperSerial.serialize(function.getInputs(), args, true));
             System.err.println(SuperSerial.serialize(function.getInputs(), decoded, true));

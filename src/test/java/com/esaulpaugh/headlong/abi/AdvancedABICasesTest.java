@@ -14,6 +14,7 @@ package com.esaulpaugh.headlong.abi;
 
 import com.esaulpaugh.headlong.TestUtils;
 import com.esaulpaugh.headlong.abi.util.Deserializer;
+import com.esaulpaugh.headlong.abi.util.Formatter;
 import com.esaulpaugh.headlong.util.FastHex;
 import com.esaulpaugh.headlong.abi.util.JsonUtils;
 import com.google.gson.JsonArray;
@@ -70,8 +71,8 @@ public class AdvancedABICasesTest {
                     System.out.println(this.function.getCanonicalSignature() + ", " + this.values);
                     System.out.println(buildCallComparison(result, encoding));
                 } else {
-                    String[] resultTokens = ABIType.format(result).split("[\n]");
-                    String[] encodingTokens = ABIType.format(encoding).split("[\n]");
+                    String[] resultTokens = Formatter.format(result).split("[\n]");
+                    String[] encodingTokens = Formatter.format(encoding).split("[\n]");
                     System.out.println(types.canonicalType);
                     int i = 0;
                     for (; i < resultTokens.length; i++) {

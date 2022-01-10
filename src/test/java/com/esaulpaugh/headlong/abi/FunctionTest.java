@@ -16,6 +16,7 @@
 package com.esaulpaugh.headlong.abi;
 
 import com.esaulpaugh.headlong.TestUtils;
+import com.esaulpaugh.headlong.abi.util.Formatter;
 import com.esaulpaugh.headlong.abi.util.WrappedKeccak;
 import org.junit.jupiter.api.Test;
 
@@ -40,16 +41,29 @@ public class FunctionTest {
     }
 
     @Test
-    public void testFormatLength() {
-        int len = 4 + 32;
-        byte[] buffer = new byte[len + 103];
-        for (int i = 0; i < 33; i++) {
-            assertEquals(
-                    "ID       00000000\n" +
-                    "0        0000000000000000000000000000000000000000000000000000000000000000",
-                    Function.formatCall(buffer, i, len)
-            );
-        }
+    public void testFormatCall() {
+        byte[] buffer = new byte[Function.SELECTOR_LEN + UnitType.UNIT_LENGTH_BYTES * 2];
+        assertEquals(
+                """
+                00000000
+                0000000000000000000000000000000000000000000000000000000000000000
+                0000000000000000000000000000000000000000000000000000000000000000""",
+                Formatter.formatCall(buffer, Formatter.LABELS_NONE)
+        );
+        assertEquals(
+                """
+                ID       00000000
+                0        0000000000000000000000000000000000000000000000000000000000000000
+                1        0000000000000000000000000000000000000000000000000000000000000000""",
+                Formatter.formatCall(buffer, Formatter.LABELS_ROW_NUMBERS)
+        );
+        assertEquals(
+                """
+                ID       00000000
+                     0   0000000000000000000000000000000000000000000000000000000000000000
+                    20   0000000000000000000000000000000000000000000000000000000000000000""",
+                Formatter.formatCall(buffer, Formatter.LABELS_OFFSETS)
+        );
     }
 
     @Test
@@ -126,7 +140,7 @@ public class FunctionTest {
 
     @Test
     public void testFormatTupleType() {
-        String f = Function.formatCall(new byte[] { 1, 1, 1, 1, 0x45, 0x13, 0x79, 0x03,
+        String f = Formatter.formatCall(new byte[] { 0x45, 0x13, 0x79, 0x03,
                 34, 33, 32, 31,
                 34, 33, 32, 31,
                 34, 33, 32, 31,
@@ -135,7 +149,7 @@ public class FunctionTest {
                 34, 33, 32, 31,
                 34, 33, 32, 31,
                 34, 33, 32, 31,
-        }, 4, 36);
+        });
         System.out.println(f);
         assertEquals("ID       45137903\n0        2221201f2221201f2221201f2221201f2221201f2221201f2221201f2221201f", f);
     }

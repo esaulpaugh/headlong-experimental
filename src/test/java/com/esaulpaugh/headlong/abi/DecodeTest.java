@@ -16,6 +16,7 @@
 package com.esaulpaugh.headlong.abi;
 
 import com.esaulpaugh.headlong.TestUtils;
+import com.esaulpaugh.headlong.abi.util.Formatter;
 import com.esaulpaugh.headlong.util.Integers;
 import com.esaulpaugh.headlong.util.Strings;
 import org.junit.jupiter.api.Test;
@@ -255,21 +256,21 @@ public class DecodeTest {
         final Tuple argsTuple = new Tuple(69L, true);
         final byte[] array = f.encodeCall(argsTuple).array();
 
-        System.out.println(Function.formatCall(array));
+        System.out.println(Formatter.formatCall(array));
 
         array[array.length - 1] = 0;
-        System.out.println(Function.formatCall(array));
+        System.out.println(Formatter.formatCall(array));
         assertNotEquals(argsTuple, f.decodeCall(array));
 
         array[array.length - 32] = (byte) 0x80;
-        System.out.println(Function.formatCall(array));
+        System.out.println(Formatter.formatCall(array));
         assertThrown(IllegalArgumentException.class, "signed value given for unsigned type", () -> f.decodeCall(array));
 
         for (int i = array.length - 32; i < array.length; i++) {
             array[i] = (byte) 0xFF;
         }
         array[array.length - 1] = (byte) 0xFE;
-        System.out.println(Function.formatCall(array));
+        System.out.println(Formatter.formatCall(array));
         assertThrown(IllegalArgumentException.class, "signed value given for unsigned type", () -> f.decodeCall(array));
     }
 

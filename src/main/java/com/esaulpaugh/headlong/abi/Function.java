@@ -15,7 +15,6 @@
 */
 package com.esaulpaugh.headlong.abi;
 
-import com.esaulpaugh.headlong.util.Integers;
 import com.esaulpaugh.headlong.abi.util.JsonUtils;
 import com.esaulpaugh.headlong.util.Strings;
 import com.google.gson.JsonObject;
@@ -26,7 +25,6 @@ import java.security.DigestException;
 import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.Objects;
-import java.util.function.IntFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -37,7 +35,6 @@ import static com.esaulpaugh.headlong.abi.TypeEnum.ORDINAL_EVENT;
 import static com.esaulpaugh.headlong.abi.TypeEnum.ORDINAL_FALLBACK;
 import static com.esaulpaugh.headlong.abi.TypeEnum.ORDINAL_FUNCTION;
 import static com.esaulpaugh.headlong.abi.TypeEnum.ORDINAL_RECEIVE;
-import static com.esaulpaugh.headlong.abi.UnitType.UNIT_LENGTH_BYTES;
 
 /**
  * Represents a function in an Ethereum contract. Can encode and decode calls matching this function's signature.
@@ -311,35 +308,5 @@ public final class Function implements ABIObject {
      */
     public static MessageDigest newDefaultDigest() {
         return new Keccak(256); // replace this with your preferred impl
-    }
-
-    public static String formatCall(byte[] abiCall) {
-        return formatCall(abiCall, 0, abiCall.length);
-    }
-
-    public static String formatCall(byte[] buffer, int offset, final int length) {
-        return formatCall(buffer, offset, length, (int row) -> ABIType.pad(0, Integer.toString(row)));
-    }
-
-    /**
-     * Returns a formatted string for a given ABI-encoded function call.
-     *
-     * @param buffer the buffer containing the ABI call
-     * @param offset the offset into the input buffer of the ABI call
-     * @param length the length of the ABI call
-     * @param labeler code to generate the row label
-     * @return the formatted string
-     * @throws IllegalArgumentException if the input length mod 32 != 4
-     */
-    public static String formatCall(byte[] buffer, final int offset, final int length, IntFunction<String> labeler) {
-        Integers.checkIsMultiple(length - SELECTOR_LEN, UNIT_LENGTH_BYTES);
-        return ABIType.finishFormat(
-                buffer,
-                offset + SELECTOR_LEN,
-                offset + length,
-                labeler,
-                new StringBuilder(ABIType.pad(0, "ID"))
-                        .append(Strings.encode(buffer, offset, SELECTOR_LEN, Strings.HEX))
-        );
     }
 }

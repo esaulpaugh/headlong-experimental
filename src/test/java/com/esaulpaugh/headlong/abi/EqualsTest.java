@@ -16,6 +16,7 @@
 package com.esaulpaugh.headlong.abi;
 
 import com.esaulpaugh.headlong.TestUtils;
+import com.esaulpaugh.headlong.abi.util.Formatter;
 import com.esaulpaugh.headlong.abi.util.WrappedKeccak;
 import com.esaulpaugh.headlong.util.FastHex;
 import com.esaulpaugh.headlong.util.Strings;
@@ -135,7 +136,7 @@ public class EqualsTest {
 
         final ByteBuffer abi = f.encodeCallWithArgs(argsIn);
 
-        assertTrue(Function.formatCall(abi.array()).contains("18       000000000000000000000000" + addressHex));
+        assertTrue(Formatter.formatCall(abi.array()).contains("18       000000000000000000000000" + addressHex));
 
         final Tuple tupleOut = f.decodeCall(abi.flip());
 

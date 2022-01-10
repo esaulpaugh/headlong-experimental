@@ -16,6 +16,7 @@
 package com.esaulpaugh.headlong.abi;
 
 import com.esaulpaugh.headlong.TestUtils;
+import com.esaulpaugh.headlong.abi.util.Formatter;
 import com.esaulpaugh.headlong.abi.util.Uint;
 import com.esaulpaugh.headlong.abi.util.WrappedKeccak;
 import com.esaulpaugh.headlong.util.Strings;
@@ -244,14 +245,14 @@ public class EncodeTest {
 
     @Test
     public void testFunctionFormat() throws Throwable {
-        testFormat(true, Function::formatCall);
-        testFormatHash(Function::formatCall, "137fe81220baa4ad0300a7a31ac26b0b07549af69af96d436ca3b2a0ebd1b949", "1663cedd" + ABI);
+        testFormat(true, Formatter::formatCall);
+        testFormatHash(Formatter::formatCall, "137fe81220baa4ad0300a7a31ac26b0b07549af69af96d436ca3b2a0ebd1b949", "1663cedd" + ABI);
     }
 
     @Test
     public void testTupleFormat() throws Throwable {
-        testFormat(false, TupleType::format);
-        testFormatHash(TupleType::format, "c16f9cf84bd8229553d38586ad15784cfd1dc05b45ec307cd074f3be04968777", ABI);
+        testFormat(false, Formatter::format);
+        testFormatHash(Formatter::format, "c16f9cf84bd8229553d38586ad15784cfd1dc05b45ec307cd074f3be04968777", ABI);
 
     }
 
@@ -364,7 +365,7 @@ public class EncodeTest {
         ByteBuffer one = f.encodeCall(args);
         ByteBuffer two = f.encodeCallWithArgs(69L, true);
 
-        System.out.println(Function.formatCall(one.array())); // a multi-line hex representation
+        System.out.println(Formatter.formatCall(one.array())); // a multi-line hex representation
 
         Tuple decoded = f.decodeCall(two.flip());
 
@@ -587,6 +588,34 @@ public class EncodeTest {
         TestUtils.assertThrown(IllegalArgumentException.class, "tuple index 0: array length mismatch: byte[31] != byte[21] (bytes21 requires length 21 but found 31)",
                 () -> Function.parse("foo(bytes21)").encodeCallWithArgs((Object) new byte[31])
         );
+
+        final Function f = Function.parse("foo(bool[1][2][3])");
+
+        boolean[][][] x = new boolean[3][2][1];
+        assertEquals(TestUtils.removeWhitespace("""
+                5dc63323
+                0000000000000000000000000000000000000000000000000000000000000000
+                0000000000000000000000000000000000000000000000000000000000000000
+                0000000000000000000000000000000000000000000000000000000000000000
+                0000000000000000000000000000000000000000000000000000000000000000
+                0000000000000000000000000000000000000000000000000000000000000000
+                0000000000000000000000000000000000000000000000000000000000000000"""), Strings.encode(f.encodeCall(Tuple.singleton(x))));
+
+        boolean[][] z = new boolean[][] { new boolean[1], new boolean[1] };
+        boolean[][][] y = new boolean[][][]{
+                z,
+                new boolean[][]{ new boolean[1], new boolean[] {true} },
+                z
+        };
+        assertEquals("321", y.length + "" + y[0].length + "" + y[0][0].length);
+        assertEquals(TestUtils.removeWhitespace("""
+                5dc63323
+                0000000000000000000000000000000000000000000000000000000000000000
+                0000000000000000000000000000000000000000000000000000000000000000
+                0000000000000000000000000000000000000000000000000000000000000000
+                0000000000000000000000000000000000000000000000000000000000000001
+                0000000000000000000000000000000000000000000000000000000000000000
+                0000000000000000000000000000000000000000000000000000000000000000"""), Strings.encode(f.encodeCall(Tuple.singleton(y))));
     }
 
     @Test
