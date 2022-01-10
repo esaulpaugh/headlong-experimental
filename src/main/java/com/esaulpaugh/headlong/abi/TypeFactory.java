@@ -101,17 +101,17 @@ public final class TypeFactory {
 
     @SuppressWarnings("unchecked")
     public static <T extends ABIType<?>> T create(String rawType, String name) {
-        return (T) _build(rawType, null)
+        return (T) build(rawType, null)
                     .setName(name);
     }
 
-    static ABIType<?> _build(final String rawType, ABIType<?> baseType) {
+    static ABIType<?> build(final String rawType, ABIType<?> baseType) {
         try {
             final int lastCharIdx = rawType.length() - 1;
             if (rawType.charAt(lastCharIdx) == ']') { // array
                 final int secondToLastCharIdx = lastCharIdx - 1;
                 final int arrayOpenIndex = rawType.lastIndexOf('[', secondToLastCharIdx);
-                final ABIType<?> elementType = _build(rawType.substring(0, arrayOpenIndex), baseType);
+                final ABIType<?> elementType = build(rawType.substring(0, arrayOpenIndex), baseType);
                 return new ArrayType<>(
                         elementType.canonicalType + rawType.substring(arrayOpenIndex),
                         elementType.arrayClass(),
@@ -191,7 +191,7 @@ public final class TypeFactory {
                     throw new IllegalArgumentException("empty parameter");
                 } else if(c != ')') {
                     argEnd = nextTerminator(rawTypeStr, c, argStart);
-                    elements.add(_build(rawTypeStr.substring(argStart, argEnd), null));
+                    elements.add(build(rawTypeStr.substring(argStart, argEnd), null));
                     terminator = rawTypeStr.charAt(argEnd);
                 }
                 if(terminator == ')') {
