@@ -30,7 +30,7 @@ public class Formatter {
     private static final int LABEL_LEN = 6;
     private static final int LABEL_PADDED_LEN = LABEL_LEN + 3;
 
-    public static final IntFunction<String> LABELS_NONE = i -> "";
+    public static final IntFunction<String> LABELS_NONE = (int row) -> "";
     public static final IntFunction<String> LABELS_ROW_NUMBERS = (int row) -> pad(0, Integer.toString(row));
     public static final IntFunction<String> LABELS_OFFSETS = (int row) -> {
         String unpadded = Integer.toHexString(row * UNIT_LENGTH_BYTES);
