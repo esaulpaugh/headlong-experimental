@@ -187,13 +187,15 @@ public final class TypeFactory {
             final int last = rawTypeStr.length() - 1; // must be >= 0
             while (argStart <= last) {
                 char c = rawTypeStr.charAt(argStart);
-                if(c == ',' || (c == ')' && terminator == ',')) {
+                if(c == ')' || c == ',') {
+                    if("()".equals(rawTypeStr)) {
+                        return TupleType.EMPTY;
+                    }
                     throw new IllegalArgumentException("empty parameter");
-                } else if(c != ')') {
-                    argEnd = nextTerminator(rawTypeStr, c, argStart);
-                    elements.add(build(rawTypeStr.substring(argStart, argEnd), null));
-                    terminator = rawTypeStr.charAt(argEnd);
                 }
+                argEnd = nextTerminator(rawTypeStr, c, argStart);
+                elements.add(build(rawTypeStr.substring(argStart, argEnd), null));
+                terminator = rawTypeStr.charAt(argEnd);
                 argStart = argEnd + 1; // jump over terminator
             }
             return terminator == ')' && argEnd == last ? TupleType.wrap(elements.toArray(EMPTY_ARRAY)) : null;
