@@ -189,7 +189,7 @@ public final class TypeFactory {
                 char c = rawTypeStr.charAt(argStart);
                 if(c == ')' || c == ',') {
                     if("()".equals(rawTypeStr)) {
-                        return TupleType.EMPTY;
+                        return TupleType.wrap();
                     }
                     throw new IllegalArgumentException("empty parameter");
                 }
