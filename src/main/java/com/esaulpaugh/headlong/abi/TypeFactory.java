@@ -183,22 +183,20 @@ public final class TypeFactory {
         try {
             int argStart = 1; // after opening '('
             int argEnd = 1; // inital value important for empty params case: "()"
-            char terminator = ')'; // inital value important for empty params case
             final int last = rawTypeStr.length() - 1; // must be >= 0
             while (argStart <= last) {
                 char c = rawTypeStr.charAt(argStart);
                 if(c == ')' || c == ',') {
                     if("()".equals(rawTypeStr)) {
-                        return TupleType.wrap();
+                        break;
                     }
                     throw new IllegalArgumentException("empty parameter");
                 }
                 argEnd = nextTerminator(rawTypeStr, c, argStart);
                 elements.add(build(rawTypeStr.substring(argStart, argEnd), null));
-                terminator = rawTypeStr.charAt(argEnd);
                 argStart = argEnd + 1; // jump over terminator
             }
-            return terminator == ')' && argEnd == last ? TupleType.wrap(elements.toArray(EMPTY_ARRAY)) : null;
+            return argEnd == last && rawTypeStr.charAt(last) == ')'? TupleType.wrap(elements.toArray(EMPTY_ARRAY)) : null;
         } catch (IllegalArgumentException iae) {
             throw new IllegalArgumentException("@ index " + elements.size() + ", " + iae.getMessage(), iae);
         }
