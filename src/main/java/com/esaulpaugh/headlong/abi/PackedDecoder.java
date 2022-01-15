@@ -159,7 +159,6 @@ final class PackedDecoder {
             dest[destIdx] = new BigInteger(copy);
         } else {
             dest[destIdx] = new BigInteger(buffer, idx, elementLen); // Java 9+
-//            dest[destIdx] = new BigInteger(Arrays.copyOfRange(buffer, idx, idx + elementLen));
         }
         return elementLen;
     }
@@ -179,7 +178,6 @@ final class PackedDecoder {
             unscaled = new BigInteger(copy);
         } else {
             unscaled = new BigInteger(buffer, idx, elementLen); // Java 9+
-//            unscaled = new BigInteger(Arrays.copyOfRange(buffer, idx, idx + elementLen));
         }
         dest[destIdx] = new BigDecimal(unscaled, type.getScale());
         return elementLen;
@@ -294,6 +292,5 @@ final class PackedDecoder {
 
     static BigInteger decodeBigInteger(byte[] buffer, int i, int len) {
         return new BigInteger(buffer, i, len); // Java 9+
-//        return new BigInteger(Arrays.copyOfRange(buffer, i, i + len));
     }
 }

@@ -135,9 +135,6 @@ public final class TypeFactory {
             if(leadDigitValid(first) || (first == '0' && end - start == 1)) {
                 return Integer.parseInt(rawType, start, end, 10); // Java 9+
             }
-//            if(leadDigitValid(lenStr.charAt(0)) || "0".equals(lenStr)) {
-//                return Integer.parseInt(lenStr);
-//            }
         } catch (NumberFormatException ignored) {
             /* fall through */
         }
