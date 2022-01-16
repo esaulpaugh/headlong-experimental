@@ -204,10 +204,6 @@ public class TupleTest {
                 Object[] elements = new Object[n];
                 System.arraycopy(master, i, elements, 0, n);
                 assertEquals(tuple.subtuple(i, j), new Tuple(elements));
-//                for (int k = i; k < j; k++) {
-//                    System.out.print((char) (k + 48));
-//                }
-//                System.out.println();
             }
         }
     }
