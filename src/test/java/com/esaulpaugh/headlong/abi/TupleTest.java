@@ -25,6 +25,7 @@ import java.math.BigInteger;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 
+import static com.esaulpaugh.headlong.TestUtils.assertThrown;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -240,5 +241,12 @@ public class TupleTest {
     @Test
     public void testElementTypes() throws Throwable {
         TestUtils.assertThrown(UnsupportedOperationException.class, () -> TupleType.parse("(bool)").elementTypes().clear());
+    }
+
+    @Test
+    public void testBadTerminators() throws Throwable {
+        assertThrown(IllegalArgumentException.class, "unrecognized type: \"(int)())\"", () -> TupleType.parse("(int)())"));
+
+        assertThrown(IllegalArgumentException.class, "unrecognized type: \"(())())\"", () -> TupleType.parse("(())())"));
     }
 }
