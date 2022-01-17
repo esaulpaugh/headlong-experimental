@@ -466,9 +466,12 @@ public class EncodeTest {
     @Test
     public void testIsEmpty() {
         assertTrue(TupleType.EMPTY.isEmpty());
+        assertTrue(TupleType.empty().isEmpty());
         assertTrue(TupleType.parse("()").isEmpty());
         assertFalse(TupleType.parse("(int)").isEmpty());
         assertFalse(TupleType.parse("(bool,string)").isEmpty());
+
+        assertEquals(TupleType.EMPTY, TupleType.empty());
     }
 
     @Test
