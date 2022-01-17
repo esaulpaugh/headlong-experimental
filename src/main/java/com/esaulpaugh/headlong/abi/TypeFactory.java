@@ -178,52 +178,54 @@ public final class TypeFactory {
     private static TupleType parseTupleType(final String rawTypeStr) { /* assumes that rawTypeStr.charAt(0) == '(' */
         final ArrayList<ABIType<?>> elements = new ArrayList<>();
         try {
+            final int len = rawTypeStr.length(); // must be >= 1
             int argStart = 1; // after opening '('
-            int argEnd = 1; // inital value important for empty params case: "()"
-            final int last = rawTypeStr.length() - 1; // must be >= 0
-            char terminator = ')'; // inital value important for empty params case
-            while (argStart <= last) {
-                char c = rawTypeStr.charAt(argStart);
-                if(c == ')' || c == ',') {
+            WHILE:
+            while (argStart < len) {
+                int argEnd = argStart;
+                switch (rawTypeStr.charAt(argStart)) {
+                case ')':
                     if("()".equals(rawTypeStr)) {
-                        break;
+                        return TupleType.wrap(); // return new instance, not TupleType.EMPTY
                     }
+                case ',':
                     throw new IllegalArgumentException("empty parameter");
+                case '(': argEnd = findSubtupleEnd(rawTypeStr, argStart);
+                default:
+                    for( ; argEnd < len; argEnd++) {
+                        char terminator = rawTypeStr.charAt(argEnd);
+                        if(terminator == ',') {
+                            elements.add(build(rawTypeStr.substring(argStart, argEnd), null));
+                            argStart = argEnd + 1; // jump over terminator
+                            continue WHILE;
+                        }
+                        if(terminator == ')') {
+                            elements.add(build(rawTypeStr.substring(argStart, argEnd), null));
+                            argStart = argEnd + 1; // jump over terminator
+                            return argStart == len ? TupleType.wrap(elements.toArray(EMPTY_ARRAY)) : null;
+                        }
+                    }
+                    return null;
                 }
-                argEnd = nextTerminator(rawTypeStr, c, argStart);
-                elements.add(build(rawTypeStr.substring(argStart, argEnd), null));
-                terminator = rawTypeStr.charAt(argEnd);
-                if(terminator == ')') {
-                    break;
-                }
-                argStart = argEnd + 1; // jump over terminator
             }
-            return argEnd == last && terminator == ')'? TupleType.wrap(elements.toArray(EMPTY_ARRAY)) : null;
+            return null;
         } catch (IllegalArgumentException iae) {
             throw new IllegalArgumentException("@ index " + elements.size() + ", " + iae.getMessage(), iae);
         }
     }
 
-    private static int nextTerminator(String signature, char c, int i) {
-        if(c == '(') {
-            int depth = 1;
-            do {
-                char x = signature.charAt(++i);
-                if(x <= ')') {
-                    if(x == ')') {
-                        depth--;
-                    } else if(x == '(') {
-                        depth++;
-                    }
+    private static int findSubtupleEnd(String signature, int i) {
+        int depth = 1;
+        do {
+            char x = signature.charAt(++i);
+            if(x <= ')') {
+                if(x == ')') {
+                    depth--;
+                } else if(x == '(') {
+                    depth++;
                 }
-            } while(depth > 0);
-            i++;
-        }
-        final int len = signature.length();
-        for( ; i < len; i++) {
-            char x = signature.charAt(i);
-            if(x == ',' || x == ')') return i;
-        }
-        return -1;
+            }
+        } while(depth > 0);
+        return i + 1;
     }
 }
