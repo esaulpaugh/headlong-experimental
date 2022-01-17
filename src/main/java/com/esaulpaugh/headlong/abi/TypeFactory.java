@@ -185,7 +185,7 @@ public final class TypeFactory {
                 int argEnd;
                 switch (rawTypeStr.charAt(argStart)) {
                 case '(': argEnd = findSubtupleEnd(rawTypeStr, argStart); break;
-                case ')': if("()".equals(rawTypeStr)) return TupleType.wrap(); // return new instance, not TupleType.EMPTY
+                case ')': if("()".equals(rawTypeStr)) return TupleType.empty(); // return new instance, not TupleType.EMPTY
                 case ',': throw new IllegalArgumentException("empty parameter");
                 default: argEnd = argStart;
                 }

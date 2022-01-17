@@ -34,13 +34,17 @@ public final class TupleType extends ABIType<Tuple> implements Iterable<ABIType<
 
     private static final String EMPTY_TUPLE_STRING = "()";
 
-    public static final TupleType EMPTY = new TupleType(EMPTY_TUPLE_STRING, false, EMPTY_ARRAY);
+    public static final TupleType EMPTY = empty();
 
     final ABIType<?>[] elementTypes;
 
     private TupleType(String canonicalType, boolean dynamic, ABIType<?>[] elementTypes) {
         super(canonicalType, Tuple.class, dynamic);
         this.elementTypes = elementTypes;
+    }
+
+    static TupleType empty() {
+        return new TupleType(EMPTY_TUPLE_STRING, false, EMPTY_ARRAY);
     }
 
     static TupleType wrap(ABIType<?>... elements) {
