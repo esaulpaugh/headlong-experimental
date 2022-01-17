@@ -45,21 +45,7 @@ public class BasicABICasesTest {
         }
     }
 
-    private static class ABITestCase {
-        final String key;
-
-        final JsonArray args;
-        final JsonArray types;
-        final String result;
-        final Function function;
-
-        private ABITestCase(String key, JsonArray args, String result, JsonArray types, Function function) {
-            this.key = key;
-            this.args = args;
-            this.types = types;
-            this.result = result;
-            this.function = function;
-        }
+    private record ABITestCase(String key, JsonArray args, String result, JsonArray types, Function function) {
 
         static ABITestCase forKey(String key) {
             JsonObject jsonObject = null;

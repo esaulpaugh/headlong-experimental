@@ -210,7 +210,7 @@ public class RLPEncoderTest {
                 "unsupported object type: java.nio.HeapByteBuffer",
                 () -> RLPEncoder.encodeSequentially(new byte[0], ByteBuffer.allocate(0))
         );
-        RLPEncoder.encodeSequentially(() -> new Iterator<Object>() {
+        RLPEncoder.encodeSequentially(() -> new Iterator<>() {
             @Override
             public boolean hasNext() {
                 return false;
