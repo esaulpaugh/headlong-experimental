@@ -197,7 +197,7 @@ public final class TypeFactory {
                         continue WHILE;
                     } else if(c == ')') {
                         elements.add(build(rawTypeStr.substring(argStart, argEnd), null));
-                        return argEnd == len - 1 ? TupleType.wrap(elements.toArray(EMPTY_ARRAY)) : null;
+                        return argEnd == len - 1 ? TupleType.wrap(elements) : null;
                     }
                 }
                 break;

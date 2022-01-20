@@ -93,7 +93,7 @@ public class EqualsTest {
         if (o == null || tt.getClass() != o.getClass()) return false;
         if (!tt.equals(o)) return false;
         TupleType tupleType = (TupleType) o;
-        return Arrays.equals(tt.elementTypes, tupleType.elementTypes);
+        return Arrays.equals(tt.elementTypes.toArray(), tupleType.elementTypes.toArray());
     }
 
     @Test

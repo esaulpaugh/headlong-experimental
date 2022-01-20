@@ -16,6 +16,7 @@
 package com.esaulpaugh.headlong.abi;
 
 import java.nio.ByteBuffer;
+import java.util.Collections;
 
 import static com.esaulpaugh.headlong.abi.UnitType.UNIT_LENGTH_BYTES;
 
@@ -202,7 +203,7 @@ public abstract sealed class ABIType<J> permits UnitType, ArrayType, TupleType {
 
     @SuppressWarnings("unchecked")
     public final J decodePacked(byte[] buffer) {
-        return (J) PackedDecoder.decode(TupleType.wrap(this), buffer).get(0);
+        return (J) PackedDecoder.decode(TupleType.wrap(Collections.singletonList(this)), buffer).get(0);
     }
 
     /**

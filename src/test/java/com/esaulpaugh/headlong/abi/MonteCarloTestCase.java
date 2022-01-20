@@ -338,13 +338,10 @@ public class MonteCarloTestCase implements Serializable {
         return TypeFactory.create(sb.toString());
     }
 
-    private Tuple generateTuple(ABIType<?>[] elementTypes, Random r) {
-        final int size = elementTypes.length;
-        Object[] args = new Object[size];
-        for (int i = 0; i < size; i++) {
-            args[i] = generateValue(elementTypes[i], r);
-        }
-        return new Tuple(args);
+    private Tuple generateTuple(List<ABIType<?>> elementTypes, Random r) {
+        return new Tuple(elementTypes.stream()
+                .map(e -> generateValue(e, r))
+                .toArray());
     }
 
     private Object generateValue(ABIType<?> type, Random r) {

@@ -25,6 +25,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
+import java.util.List;
 
 import static com.esaulpaugh.headlong.TestUtils.assertThrown;
 import static com.esaulpaugh.headlong.TestUtils.decodeHex;
@@ -361,7 +362,7 @@ public class DecodeTest {
             final TupleType n = TypeFactory.create("(bool)");
             m.encode(new BigInteger[] {});
 
-            TupleType.wrap(TypeFactory.create("int"), TypeFactory.create("bytes[7]"));
+            TupleType.wrap(List.of(TypeFactory.create("int"), TypeFactory.create("bytes[7]")));
         }
 
         assertEquals("nam", type.getName());
