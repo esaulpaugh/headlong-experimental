@@ -305,18 +305,25 @@ public class DecodeTest {
     }
 
     @Test
-    public void testNameOverwrite() {
-        BooleanType t = TypeFactory.create("bool", "moo");
-        assertEquals("moo", t.getName());
+    public void testNameOverwrites() {
+        testNameOverwrite("bool", "moo", "jumbo");
+        testNameOverwrite("()", "zZz", "Jumb0");
+    }
 
-        BooleanType q = TypeFactory.create("bool");
-        assertEquals("moo", t.getName());
-        assertNull(q.getName());
+    private static void testNameOverwrite(String typeStr, String aName, String cName) {
+        assertNotEquals(aName, cName);
 
-        BooleanType z = TypeFactory.create("bool", "jumbo");
-        assertEquals("moo", t.getName());
-        assertNull(q.getName());
-        assertEquals("jumbo", z.getName());
+        final ABIType<?> a = TypeFactory.create(typeStr, aName);
+        assertEquals(aName, a.getName());
+
+        final ABIType<?> b = TypeFactory.create(typeStr);
+        assertEquals(aName, a.getName());
+        assertNull(b.getName());
+
+        final ABIType<?> c = TypeFactory.create(typeStr, cName);
+        assertEquals(aName, a.getName());
+        assertNull(b.getName());
+        assertEquals(cName, c.getName());
     }
 
     @Test
