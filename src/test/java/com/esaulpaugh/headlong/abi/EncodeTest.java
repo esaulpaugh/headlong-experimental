@@ -28,11 +28,9 @@ import org.opentest4j.AssertionFailedError;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -60,7 +58,7 @@ public class EncodeTest {
 
     private static final String EMPTY_PARAMETER = "empty parameter";
 
-    private static final String TYPE_PATTERN = "[\\(\\)a-z0-9]+[\\[[0-9]*\\]]*";
+    private static final String TYPE_PATTERN = "[()a-z0-9]+[\\[0-9*\\]]*";
     private static final Pattern TUPLE_TYPE_PATTERN = Pattern.compile("^\\((" + TYPE_PATTERN + ")*(," + TYPE_PATTERN + ")*\\)$");
 
     @Disabled("may take minutes to run")
