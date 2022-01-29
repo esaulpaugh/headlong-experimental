@@ -179,9 +179,8 @@ public final class TypeFactory {
         WHILE:
         while (argStart < len) {
             try {
-                final char s = rawTypeStr.charAt(argStart);
                 int i = argStart;
-                switch (s) {
+                switch (rawTypeStr.charAt(argStart)) {
                 case ')': if ("()".equals(rawTypeStr)) return TupleType.empty(); // a new instance (not TupleType.EMPTY) so name can be set
                 case ',': throw new IllegalArgumentException("empty parameter");
                 case '(': i = findSubtupleEnd(rawTypeStr, argStart);
