@@ -119,13 +119,10 @@ public final class TypeFactory {
                         null
                 );
             }
-            if(baseType != null || (baseType = resolveBaseType(rawType)) != null) {
-                return baseType;
-            }
+            return baseType != null ? baseType : resolveBaseType(rawType);
         } catch (StringIndexOutOfBoundsException ignored) { // e.g. type equals "" or "82]" or "[]" or "[1]"
-            /* fall through */
+            throw new IllegalArgumentException("bad type: \"" + rawType + '"');
         }
-        throw new IllegalArgumentException("unrecognized type: \"" + rawType + '"');
     }
 
     private static int parseLen(String rawType, int start, int end) {
@@ -145,10 +142,10 @@ public final class TypeFactory {
             return parseTupleType(baseTypeStr);
         }
         Supplier<ABIType<?>> supplier = SUPPLIER_MAP.get(baseTypeStr);
-        return supplier != null ? supplier.get() : tryParseFixed(baseTypeStr);
+        return supplier != null ? supplier.get() : parseFixed(baseTypeStr);
     }
 
-    private static BigDecimalType tryParseFixed(final String type) {
+    private static BigDecimalType parseFixed(final String type) {
         final int idx = type.indexOf("fixed");
         boolean unsigned = false;
         if (idx == 0 || (unsigned = (idx == 1 && type.charAt(0) == 'u'))) {
@@ -167,7 +164,7 @@ public final class TypeFactory {
                 /* fall through */
             }
         }
-        return null;
+        throw new IllegalArgumentException("unrecognized base type: \"" + type + "\"");
     }
 
     private static boolean leadDigitValid(char c) {
@@ -175,36 +172,42 @@ public final class TypeFactory {
     }
 
     private static TupleType parseTupleType(final String rawTypeStr) { /* assumes that rawTypeStr.charAt(0) == '(' */
+        final int len = rawTypeStr.length(); // must be >= 1
+        int argStart = 1; // after opening '('
+        String errMsg = null;
         final ArrayList<ABIType<?>> elements = new ArrayList<>();
-        try {
-            final int len = rawTypeStr.length(); // must be >= 1
-            int argStart = 1; // after opening '('
-            WHILE:
-            while (argStart < len) {
-                int argEnd;
-                switch (rawTypeStr.charAt(argStart)) {
-                case '(': argEnd = findSubtupleEnd(rawTypeStr, argStart); break;
-                case ')': if("()".equals(rawTypeStr)) return TupleType.empty(); // a new instance (not TupleType.EMPTY) so name can be set
+        WHILE:
+        while (argStart < len) {
+            try {
+                final char s = rawTypeStr.charAt(argStart);
+                int i = argStart;
+                switch (s) {
+                case ')': if ("()".equals(rawTypeStr)) return TupleType.empty(); // a new instance (not TupleType.EMPTY) so name can be set
                 case ',': throw new IllegalArgumentException("empty parameter");
-                default: argEnd = argStart;
+                case '(': i = findSubtupleEnd(rawTypeStr, argStart);
                 }
-                for( ; argEnd < len; argEnd++) {
-                    char c = rawTypeStr.charAt(argEnd);
-                    if(c == ',') {
-                        elements.add(build(rawTypeStr.substring(argStart, argEnd), null));
-                        argStart = argEnd + 1; // jump over terminator
+                for (; i < len; i++) {
+                    switch (rawTypeStr.charAt(i)) {
+                    case ',':
+                        elements.add(build(rawTypeStr.substring(argStart, i), null));
+                        argStart = i + 1; // jump over terminator
                         continue WHILE;
-                    } else if(c == ')') {
-                        elements.add(build(rawTypeStr.substring(argStart, argEnd), null));
-                        return argEnd == len - 1 ? TupleType.wrap(elements) : null;
+                    case ')':
+                        elements.add(build(rawTypeStr.substring(argStart, i), null));
+                        if (i == len - 1) {
+                            return TupleType.wrap(elements);
+                        }
+                        final String chars = rawTypeStr.substring(i + 1);
+                        errMsg = chars.length() + " trailing characters: \"" + chars + "\"";
+                        break WHILE;
                     }
                 }
                 break;
+            } catch (IllegalArgumentException iae) {
+                throw new IllegalArgumentException("@ index " + elements.size() + ", " + iae.getMessage(), iae);
             }
-            return null;
-        } catch (IllegalArgumentException iae) {
-            throw new IllegalArgumentException("@ index " + elements.size() + ", " + iae.getMessage(), iae);
         }
+        throw new IllegalArgumentException(errMsg != null ? errMsg : "unterminated tuple: " + rawTypeStr);
     }
 
     private static int findSubtupleEnd(String signature, int i) {

@@ -245,8 +245,8 @@ public class TupleTest {
 
     @Test
     public void testBadTerminators() throws Throwable {
-        assertThrown(IllegalArgumentException.class, "unrecognized type: \"(int)())\"", () -> TupleType.parse("(int)())"));
+        assertThrown(IllegalArgumentException.class, "3 trailing characters: \"())\"", () -> TupleType.parse("(int)())"));
 
-        assertThrown(IllegalArgumentException.class, "unrecognized type: \"(())())\"", () -> TupleType.parse("(())())"));
+        assertThrown(IllegalArgumentException.class, "3 trailing characters: \"())\"", () -> TupleType.parse("(())())"));
     }
 }
