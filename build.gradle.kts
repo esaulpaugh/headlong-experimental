@@ -74,7 +74,6 @@ repositories({
 })
 
 val junitVersion = "5.8.2"
-val jmhVersion = "1.34"
 val bcVersion = "1.70"
 
 dependencies({
