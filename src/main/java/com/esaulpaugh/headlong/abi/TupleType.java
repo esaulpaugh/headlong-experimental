@@ -228,7 +228,7 @@ public final class TupleType extends ABIType<Tuple> implements Iterable<ABIType<
 
     @Override
     public Iterator<ABIType<?>> iterator() {
-        return elementTypes.iterator();
+        return elementTypes().iterator();
     }
 
     public TupleType subTupleType(boolean... manifest) {
