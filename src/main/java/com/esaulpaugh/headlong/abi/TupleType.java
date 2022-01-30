@@ -68,10 +68,6 @@ public final class TupleType extends ABIType<Tuple> implements Iterable<ABIType<
         return elementTypes.get(index);
     }
 
-    public List<ABIType<?>> elementTypes() {
-        return Collections.unmodifiableList(elementTypes);
-    }
-
     @Override
     Class<?> arrayClass() {
         return Tuple[].class;
@@ -228,7 +224,7 @@ public final class TupleType extends ABIType<Tuple> implements Iterable<ABIType<
 
     @Override
     public Iterator<ABIType<?>> iterator() {
-        return elementTypes().iterator();
+        return Collections.unmodifiableList(elementTypes).iterator();
     }
 
     public TupleType subTupleType(boolean... manifest) {

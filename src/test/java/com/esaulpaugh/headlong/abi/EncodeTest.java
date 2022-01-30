@@ -48,6 +48,7 @@ import static com.esaulpaugh.headlong.abi.UnitType.UNIT_LENGTH_BYTES;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class EncodeTest {
@@ -463,13 +464,16 @@ public class EncodeTest {
 
     @Test
     public void testIsEmpty() {
+        final TupleType empty = TupleType.empty();
+
         assertTrue(TupleType.EMPTY.isEmpty());
-        assertTrue(TupleType.empty().isEmpty());
+        assertTrue(empty.isEmpty());
         assertTrue(TupleType.parse("()").isEmpty());
         assertFalse(TupleType.parse("(int)").isEmpty());
         assertFalse(TupleType.parse("(bool,string)").isEmpty());
 
-        assertEquals(TupleType.EMPTY, TupleType.empty());
+        assertEquals(TupleType.EMPTY, empty);
+        assertNotSame(TupleType.EMPTY, empty);
     }
 
     @Test

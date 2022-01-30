@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.util.Iterator;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -239,14 +240,32 @@ public class TupleTest {
     }
 
     @Test
-    public void testElementTypes() throws Throwable {
-        TestUtils.assertThrown(UnsupportedOperationException.class, () -> TupleType.parse("(bool)").elementTypes().clear());
-    }
-
-    @Test
     public void testBadTerminators() throws Throwable {
         assertThrown(IllegalArgumentException.class, "3 trailing characters: \"())\"", () -> TupleType.parse("(int)())"));
 
         assertThrown(IllegalArgumentException.class, "3 trailing characters: \"())\"", () -> TupleType.parse("(())())"));
+    }
+
+    @Test
+    public void testTupleImmutability() throws Throwable {
+        Object[] args = new Object[] { "a", "b", "c" };
+        Tuple t = new Tuple((Object[]) args);
+
+        args[1] = 'x';
+        assertEquals("a", t.get(0));
+        assertEquals("b", t.get(1));
+        assertEquals("c", t.get(2));
+
+        testRemove(t.iterator());
+    }
+
+    @Test
+    public void testTupleTypeImmutability() throws Throwable {
+        testRemove(TupleType.parse("(bool,int,string)").iterator());
+    }
+
+    private static void testRemove(Iterator<?> iter) throws Throwable {
+        iter.next();
+        assertThrown(UnsupportedOperationException.class, iter::remove);
     }
 }

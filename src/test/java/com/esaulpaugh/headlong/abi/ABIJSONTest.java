@@ -234,7 +234,7 @@ public class ABIJSONTest {
         }
         case TYPE_CODE_TUPLE -> {
             sb.append('(');
-            for (ABIType<?> e : ((TupleType) type).elementTypes()) {
+            for (ABIType<?> e : (TupleType) type) {
                 toString(e, sb);
             }
             sb.append(')');
