@@ -57,12 +57,12 @@ public final class ArrayType<ET extends ABIType<E>, E, A> extends ABIType<A> {
     }
 
     private int staticArrayHeadLength() {
-        switch (elementType.typeCode()) {
-        case TYPE_CODE_BYTE: return UNIT_LENGTH_BYTES; // all static byte arrays round up to exactly 32 bytes and not more
-        case TYPE_CODE_ARRAY: return length * elementType.asArrayType().staticArrayHeadLength();
-        case TYPE_CODE_TUPLE: return length * elementType.asTupleType().headLengthSum;
-        default: return length * UNIT_LENGTH_BYTES;
-        }
+        return switch (elementType.typeCode()) {
+            case TYPE_CODE_BYTE -> UNIT_LENGTH_BYTES; // all static byte arrays round up to exactly 32 bytes and not more
+            case TYPE_CODE_ARRAY -> length * elementType.asArrayType().staticArrayHeadLength();
+            case TYPE_CODE_TUPLE -> length * elementType.asTupleType().headLengthSum;
+            default -> length * UNIT_LENGTH_BYTES;
+        };
     }
 
     @Override
@@ -114,18 +114,17 @@ public final class ArrayType<ET extends ABIType<E>, E, A> extends ABIType<A> {
 
     @SuppressWarnings("unchecked")
     private int calcElementsLen(A value) {
-        switch (elementType.typeCode()) {
-        case TYPE_CODE_BOOLEAN: return ((boolean[]) value).length * UNIT_LENGTH_BYTES;
-        case TYPE_CODE_BYTE: return Integers.roundLengthUp(byteCount(value), UNIT_LENGTH_BYTES);
-        case TYPE_CODE_INT: return ((int[]) value).length * UNIT_LENGTH_BYTES;
-        case TYPE_CODE_LONG: return ((long[]) value).length * UNIT_LENGTH_BYTES;
-        case TYPE_CODE_BIG_INTEGER:
-        case TYPE_CODE_BIG_DECIMAL:
-        case TYPE_CODE_ADDRESS: return ((Object[]) value).length * UNIT_LENGTH_BYTES;
-        case TYPE_CODE_ARRAY:
-        case TYPE_CODE_TUPLE: return measureByteLength((E[]) value);
-        default: throw new AssertionError();
-        }
+        return switch (elementType.typeCode()) {
+            case TYPE_CODE_BOOLEAN -> ((boolean[]) value).length * UNIT_LENGTH_BYTES;
+            case TYPE_CODE_BYTE -> Integers.roundLengthUp(byteCount(value), UNIT_LENGTH_BYTES);
+            case TYPE_CODE_INT -> ((int[]) value).length * UNIT_LENGTH_BYTES;
+            case TYPE_CODE_LONG -> ((long[]) value).length * UNIT_LENGTH_BYTES;
+            case TYPE_CODE_BIG_INTEGER,
+                 TYPE_CODE_BIG_DECIMAL,
+                 TYPE_CODE_ADDRESS -> ((Object[]) value).length * UNIT_LENGTH_BYTES;
+            case TYPE_CODE_ARRAY, TYPE_CODE_TUPLE -> measureByteLength((E[]) value);
+            default -> throw new AssertionError();
+        };
     }
 
     private int staticByteLengthPacked() {
@@ -141,18 +140,17 @@ public final class ArrayType<ET extends ABIType<E>, E, A> extends ABIType<A> {
         if (value == null) {
             return staticByteLengthPacked();
         }
-        switch (elementType.typeCode()) {
-        case TYPE_CODE_BOOLEAN: return ((boolean[]) value).length * UNIT_LENGTH_BYTES;
-        case TYPE_CODE_BYTE: return byteCount(value); // * 1
-        case TYPE_CODE_INT: return ((int[]) value).length * UNIT_LENGTH_BYTES;
-        case TYPE_CODE_LONG: return ((long[]) value).length * UNIT_LENGTH_BYTES;
-        case TYPE_CODE_BIG_INTEGER:
-        case TYPE_CODE_BIG_DECIMAL:
-        case TYPE_CODE_ADDRESS: return ((Object[]) value).length * UNIT_LENGTH_BYTES;
-        case TYPE_CODE_ARRAY:
-        case TYPE_CODE_TUPLE: return measureByteLengthPacked((E[]) value);
-        default: throw new AssertionError();
-        }
+        return switch (elementType.typeCode()) {
+            case TYPE_CODE_BOOLEAN -> ((boolean[]) value).length * UNIT_LENGTH_BYTES;
+            case TYPE_CODE_BYTE -> byteCount(value); // * 1
+            case TYPE_CODE_INT -> ((int[]) value).length * UNIT_LENGTH_BYTES;
+            case TYPE_CODE_LONG -> ((long[]) value).length * UNIT_LENGTH_BYTES;
+            case TYPE_CODE_BIG_INTEGER,
+                 TYPE_CODE_BIG_DECIMAL,
+                 TYPE_CODE_ADDRESS -> ((Object[]) value).length * UNIT_LENGTH_BYTES;
+            case TYPE_CODE_ARRAY, TYPE_CODE_TUPLE -> measureByteLengthPacked((E[]) value);
+            default -> throw new AssertionError();
+        };
     }
 
     private int byteCount(Object value) {
@@ -175,18 +173,18 @@ public final class ArrayType<ET extends ABIType<E>, E, A> extends ABIType<A> {
 
     @SuppressWarnings("unchecked")
     private int validateElements(A value) {
-        switch (elementType.typeCode()) {
-        case TYPE_CODE_BOOLEAN: return validateBooleans((boolean[]) value);
-        case TYPE_CODE_BYTE: return validateBytes(value);
-        case TYPE_CODE_INT: return validateInts((int[]) value, (IntType) elementType);
-        case TYPE_CODE_LONG: return validateLongs((long[]) value, (LongType) elementType);
-        case TYPE_CODE_BIG_INTEGER:
-        case TYPE_CODE_BIG_DECIMAL:
-        case TYPE_CODE_ARRAY:
-        case TYPE_CODE_TUPLE:
-        case TYPE_CODE_ADDRESS: return validateObjects((E[]) value);
-        default: throw new AssertionError();
-        }
+        return switch (elementType.typeCode()) {
+            case TYPE_CODE_BOOLEAN -> validateBooleans((boolean[]) value);
+            case TYPE_CODE_BYTE -> validateBytes(value);
+            case TYPE_CODE_INT -> validateInts((int[]) value, (IntType) elementType);
+            case TYPE_CODE_LONG -> validateLongs((long[]) value, (LongType) elementType);
+            case TYPE_CODE_BIG_INTEGER,
+                 TYPE_CODE_BIG_DECIMAL,
+                 TYPE_CODE_ARRAY,
+                 TYPE_CODE_TUPLE,
+                 TYPE_CODE_ADDRESS -> validateObjects((E[]) value);
+            default -> throw new AssertionError();
+        };
     }
 
     private int validateBooleans(boolean[] arr) {
@@ -374,18 +372,18 @@ public final class ArrayType<ET extends ABIType<E>, E, A> extends ABIType<A> {
     A decode(ByteBuffer bb, byte[] unitBuffer) {
         final int arrayLen = length == DYNAMIC_LENGTH ? IntType.UINT21.decode(bb, unitBuffer) : length;
         checkNoDecodePossible(bb.remaining(), arrayLen);
-        switch (elementType.typeCode()) {
-        case TYPE_CODE_BOOLEAN: return (A) decodeBooleans(arrayLen, bb, unitBuffer);
-        case TYPE_CODE_BYTE: return (A) encodeIfString(decodeBytes(arrayLen, bb, (flags & ABIType.FLAG_LEGACY_DECODE) != 0));
-        case TYPE_CODE_INT: return (A) decodeInts(arrayLen, bb, (IntType) elementType, unitBuffer);
-        case TYPE_CODE_LONG: return (A) decodeLongs(arrayLen, bb, (LongType) elementType, unitBuffer);
-        case TYPE_CODE_BIG_INTEGER:
-        case TYPE_CODE_BIG_DECIMAL:
-        case TYPE_CODE_ARRAY:
-        case TYPE_CODE_TUPLE:
-        case TYPE_CODE_ADDRESS: return (A) decodeObjects(arrayLen, bb, unitBuffer);
-        default: throw new AssertionError();
-        }
+        return (A) switch (elementType.typeCode()) {
+            case TYPE_CODE_BOOLEAN -> decodeBooleans(arrayLen, bb, unitBuffer);
+            case TYPE_CODE_BYTE -> encodeIfString(decodeBytes(arrayLen, bb, (flags & ABIType.FLAG_LEGACY_DECODE) != 0));
+            case TYPE_CODE_INT -> decodeInts(arrayLen, bb, (IntType) elementType, unitBuffer);
+            case TYPE_CODE_LONG -> decodeLongs(arrayLen, bb, (LongType) elementType, unitBuffer);
+            case TYPE_CODE_BIG_INTEGER,
+                 TYPE_CODE_BIG_DECIMAL,
+                 TYPE_CODE_ARRAY,
+                 TYPE_CODE_TUPLE,
+                 TYPE_CODE_ADDRESS -> decodeObjects(arrayLen, bb, unitBuffer);
+            default -> throw new AssertionError();
+        };
     }
 
     /**

@@ -99,15 +99,15 @@ public class Tuple implements Iterable<Object> {
 
     @SuppressWarnings("unchecked")
     static <J extends Tuple> Class<J> classFor(int len) {
-        switch (len) {
-        case 1: return (Class<J>) Single.class;
-        case 2: return (Class<J>) Pair.class;
-        case 3: return (Class<J>) Triple.class;
-        case 4: return (Class<J>) Quadruple.class;
-        case 5: return (Class<J>) Quintuple.class;
-        case 6: return (Class<J>) Sextuple.class;
-        default: return (Class<J>) Tuple.class;
-        }
+        return (Class<J>) switch (len) {
+        case 1 -> Single.class;
+        case 2 -> Pair.class;
+        case 3 -> Triple.class;
+        case 4 -> Quadruple.class;
+        case 5 -> Quintuple.class;
+        case 6 -> Sextuple.class;
+        default -> Tuple.class;
+        };
     }
 
     private static Object[] requireNoNulls(Object[] elements) {
