@@ -16,10 +16,9 @@
 package com.esaulpaugh.headlong.abi;
 
 import com.esaulpaugh.headlong.TestUtils;
-import com.esaulpaugh.headlong.abi.util.Formatter;
-import com.esaulpaugh.headlong.abi.util.WrappedKeccak;
 import com.esaulpaugh.headlong.util.FastHex;
 import com.esaulpaugh.headlong.util.Strings;
+import com.esaulpaugh.headlong.util.WrappedKeccak;
 import com.joemelsha.crypto.hash.Keccak;
 import org.junit.jupiter.api.Test;
 
@@ -31,6 +30,7 @@ import java.util.Random;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -40,7 +40,8 @@ public class EqualsTest {
     @Test
     public void testEquals() {
 
-        final Random r = TestUtils.seededRandom();
+        final MonteCarloTestCase.Limits limits = new MonteCarloTestCase.Limits(3, 3, 3, 3);
+        final Random r = new Random();
         final Keccak k = new Keccak(256);
 
         int maxIters = -1;
@@ -48,14 +49,14 @@ public class EqualsTest {
         int n = 0;
         do {
 
-            final MonteCarloTestCase mctc = new MonteCarloTestCase(r.nextLong(), 3, 3, 3, 3, r, k);
+            final MonteCarloTestCase mctc = new MonteCarloTestCase(r.nextLong(), limits, r, k);
 
             final String canonical = mctc.function.getCanonicalSignature();
-            if(mctc.rawSignature.equals(canonical)) {
+            if (mctc.rawSignature().equals(canonical)) {
                 i++;
                 continue;
             }
-            if(i > maxIters) {
+            if (i > maxIters) {
                 maxIters = i;
             }
             i = 0;
@@ -88,12 +89,12 @@ public class EqualsTest {
         assertNotSame(Function.parse("(uint)").getInputs().getCanonicalType(), Function.parse("(uint)").getInputs().getCanonicalType());
     }
 
-    private static boolean recursiveEquals(TupleType tt, Object o) {
+    private static boolean recursiveEquals(TupleType<?> tt, Object o) {
         if (tt == o) return true;
         if (o == null || tt.getClass() != o.getClass()) return false;
         if (!tt.equals(o)) return false;
-        TupleType tupleType = (TupleType) o;
-        return Arrays.equals(tt.elementTypes.toArray(), tupleType.elementTypes.toArray());
+        TupleType<?> tupleType = (TupleType<?>) o;
+        return Arrays.equals(tt.elementTypes, tupleType.elementTypes);
     }
 
     @Test
@@ -112,7 +113,7 @@ public class EqualsTest {
 //                       10000000000000000000000000000000000000000
 //                        FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
         final String addressHex = "ff00ee01dd02cc03cafebabe9906880777086609";
-        assertEquals(TypeFactory.ADDRESS_BIT_LEN, addressHex.length() * FastHex.BITS_PER_CHAR);
+        assertEquals(Address.ADDRESS_BIT_LEN, addressHex.length() * FastHex.BITS_PER_CHAR);
         final String checksumAddress = Address.toChecksumAddress("0x" + addressHex);
         assertEquals("0xFF00eE01dd02cC03cafEBAbe9906880777086609", checksumAddress);
         assertEquals(addressHex, checksumAddress.replace("0x", "").toLowerCase(Locale.ENGLISH));
@@ -125,20 +126,21 @@ public class EqualsTest {
                 new String[0][],
                 new Address[] { addr },
                 BigInteger.valueOf(Long.MAX_VALUE).multiply(BigInteger.valueOf(Byte.MAX_VALUE << 2)),
-                new Tuple(7),
-                new Tuple[][][] { new Tuple[][] { new Tuple[] { new Tuple(9), new Tuple(-11) } } },
-                new Tuple[] { new Tuple(13), new Tuple(-15) },
-                new Tuple[] { new Tuple(17), new Tuple(-19) },
+                Single.of(7),
+                new Tuple[][][] { new Tuple[][] { new Tuple[] { Single.of(9), Single.of(-11) } } },
+                new Tuple[] { Single.of(13), Single.of(-15) },
+                new Tuple[] { Single.of(17), Single.of(-19) },
                 Long.MAX_VALUE / 8_500_000,
-                new Tuple[] { new Tuple((long) 0x7e), new Tuple((long) -0x7e) },
-                new Tuple(BigInteger.TEN)
+                new Tuple[] { Single.of((long) 0x7e), Single.of((long) -0x7e) },
+                Single.of(BigInteger.TEN)
         };
 
         final ByteBuffer abi = f.encodeCallWithArgs(argsIn);
+        assertEquals(0, abi.position());
 
-        assertTrue(Formatter.formatCall(abi.array()).contains("18       000000000000000000000000" + addressHex));
+        assertTrue(Function.formatCall(abi.array()).contains("18       000000000000000000000000" + addressHex));
 
-        final Tuple tupleOut = f.decodeCall(abi.flip());
+        final Tuple tupleOut = f.decodeCall(abi);
 
         assertTrue(Arrays.deepEquals(argsIn, tupleOut.elements));
     }
@@ -157,11 +159,11 @@ public class EqualsTest {
 
         Function foo = Function.parse("foo(uint32[6])");
 
-        ByteBuffer bb = foo.encodeCall(Tuple.singleton(unsigneds));
+        ByteBuffer bb = foo.encodeCall(Single.of(unsigneds));
 
-        Tuple dec = foo.decodeCall(bb.flip());
+        Tuple dec = foo.decodeCall(bb);
 
-        long[] decoded = (long[]) dec.get(0);
+        long[] decoded = dec.get(0);
 
         assertArrayEquals(unsigneds, decoded);
     }
@@ -180,12 +182,48 @@ public class EqualsTest {
 
         Function foo = Function.parse("foo(uint64[6])");
 
-        ByteBuffer bb = foo.encodeCall(Tuple.singleton(unsigneds));
+        ByteBuffer bb = foo.encodeCall(Single.of(unsigneds));
+        assertEquals(0, bb.position());
 
-        Tuple dec = foo.decodeCall(bb.flip());
+        Tuple dec = foo.decodeCall(bb);
 
-        BigInteger[] decoded = (BigInteger[]) dec.get(0);
+        BigInteger[] decoded = dec.get(0);
 
         assertArrayEquals(unsigneds, decoded);
+    }
+
+    @Test
+    public void testFlagsEquals() {
+        final String typeString = "(bytes[4][],bytes30[],string[])";
+        final TupleType<?> tt_a = TupleType.parse(typeString);
+        final TupleType<?> tt_b = TupleType.parse(ABIType.FLAGS_NONE, typeString);
+        final TupleType<?> tt_c = TupleType.parse(ABIType.FLAG_LEGACY_DECODE, typeString);
+
+        assertEquals(tt_a, tt_b);
+        assertNotEquals(tt_a, tt_c);
+
+        assertEquals(TypeFactory.create(typeString), TypeFactory.create(ABIType.FLAGS_NONE, typeString));
+        assertNotEquals(TypeFactory.create(typeString), TypeFactory.create(ABIType.FLAG_LEGACY_DECODE, typeString));
+
+        assertEquals(TypeFactory.create(typeString), TypeFactory.create(ABIType.FLAGS_NONE, typeString));
+        assertNotEquals(TypeFactory.create(typeString), TypeFactory.create(ABIType.FLAG_LEGACY_DECODE, typeString));
+
+        assertEquals(
+                Function.parse(typeString),
+                Function.parse(ABIType.FLAGS_NONE, typeString, "()")
+        );
+        assertNotEquals(
+                Function.parse(typeString),
+                Function.parse(ABIType.FLAG_LEGACY_DECODE, typeString, "()")
+        );
+
+        assertEquals(
+                new Event<>("lo", false, tt_a, false, false, false),
+                Event.create("lo", tt_b, false, false, false)
+        );
+        assertNotEquals(
+                new Event<>("lo", false, tt_a, false, false, false),
+                Event.create("lo", tt_c, false, false, false)
+        );
     }
 }

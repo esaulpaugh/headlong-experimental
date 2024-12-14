@@ -13,10 +13,10 @@
    See the License for the specific language governing permissions and
    limitations under the License.
 */
-package com.esaulpaugh.headlong.abi.util;
+package com.esaulpaugh.headlong.util;
 
 import com.esaulpaugh.headlong.TestUtils;
-import com.esaulpaugh.headlong.abi.Tuple;
+import com.esaulpaugh.headlong.abi.Single;
 import com.esaulpaugh.headlong.abi.TupleType;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -31,27 +31,24 @@ public class UnsignedTest {
     @Test
     public void testExceptions() throws Throwable {
 
-        TestUtils.assertThrown(IllegalArgumentException.class, "numBits must be non-negative", () -> new Uint(-1));
-        TestUtils.assertThrown(IllegalArgumentException.class, "numBits must be non-negative", () -> new Uint(Integer.MIN_VALUE));
+        TestUtils.assertThrown(IllegalArgumentException.class, "numBits must be positive", () -> new Uint(0));
+        TestUtils.assertThrown(IllegalArgumentException.class, "numBits must be positive", () -> new Uint(-1));
+        TestUtils.assertThrown(IllegalArgumentException.class, "numBits must be positive", () -> new Uint(Integer.MIN_VALUE));
 
-        TestUtils.assertThrown(IllegalArgumentException.class, "numBits exceeds limit: 4097 > 4096", () -> new Uint(4097));
-
-        Uint uint0 = new Uint(0);
-        assertEquals(-1L, uint0.toSignedLong(0L));
-        TestUtils.assertThrown(IllegalArgumentException.class, "unsigned has too many bits: 1 > 0", () -> uint0.toSignedLong(1L));
+        TestUtils.assertThrown(IllegalArgumentException.class, "numBits exceeds limit: 8193 > 8192", () -> new Uint(8193));
 
         Uint uint64 = new Uint(64);
-        uint64.toSignedLong(Long.MAX_VALUE);
-        uint64.toUnsigned(Long.MAX_VALUE);
+        assertEquals(Long.MAX_VALUE, uint64.toSignedLong(Long.MAX_VALUE));
+        assertEquals(BigInteger.valueOf(Long.MAX_VALUE), uint64.toUnsigned(Long.MAX_VALUE));
 
         TestUtils.assertThrown(
                 IllegalArgumentException.class,
-                "unsigned value is negative: -1",
+                "input must be non-negative",
                 () -> uint64.toSignedLong(-1L)
         );
         TestUtils.assertThrown(
                 IllegalArgumentException.class,
-                "unsigned value is negative: -9223372036854775808",
+                "input must be non-negative",
                 () -> uint64.toSignedLong(Long.MIN_VALUE)
         );
         TestUtils.assertThrown(
@@ -60,26 +57,28 @@ public class UnsignedTest {
                 () -> uint64.toUnsignedLong(Long.MIN_VALUE)
         );
 
+        final Uint uint8 = new Uint(8);
+
         TestUtils.assertThrown(
                 IllegalArgumentException.class,
                 "signed has too many bits: 8 is not less than 8",
-                () -> new Uint(8).toUnsignedLong(128)
+                () -> uint8.toUnsignedLong(128)
         );
         TestUtils.assertThrown(
                 IllegalArgumentException.class,
                 "signed has too many bits: 8 is not less than 8",
-                () -> new Uint(8).toUnsigned(BigInteger.valueOf(128))
+                () -> uint8.toUnsigned(BigInteger.valueOf(128))
         );
 
         TestUtils.assertThrown(
                 IllegalArgumentException.class,
                 "unsigned has too many bits: 9 > 8",
-                () -> new Uint(8).toSignedLong(256)
+                () -> uint8.toSignedLong(256)
         );
         TestUtils.assertThrown(
                 IllegalArgumentException.class,
                 "unsigned has too many bits: 9 > 8",
-                () -> new Uint(8).toSigned(BigInteger.valueOf(256))
+                () -> uint8.toSigned(BigInteger.valueOf(256))
         );
     }
 
@@ -88,13 +87,13 @@ public class UnsignedTest {
         TestUtils.assertThrown(
                 IllegalArgumentException.class,
                 "signed value given for unsigned type",
-                () -> TupleType.parse("(uint)").validate(Tuple.singleton(BigInteger.valueOf(-1)))
+                () -> TupleType.parse("(uint)").validate(Single.of(BigInteger.valueOf(-1)))
         );
 
         TestUtils.assertThrown(
                 IllegalArgumentException.class,
                 "signed value given for unsigned type",
-                () -> TupleType.parse("(uint48)").validate(Tuple.singleton(-1L))
+                () -> TupleType.parse("(uint48)").validate(Single.of(-1L))
         );
     }
 
@@ -104,7 +103,7 @@ public class UnsignedTest {
             final Uint type = new Uint(i);
             if (type.rangeLong <= 0
                     || type.halfRangeLong <= 0
-                    || type.maskLong <= 0) {
+                    || type.numBits >= 63) {
                 throw new Error(String.valueOf(type.numBits));
             }
             final long power = (long) Math.pow(2.0, i);
@@ -169,7 +168,7 @@ public class UnsignedTest {
             final Uint type = new Uint(i);
             final long mask = (long) Math.pow(2, i - 1) - 1L;
             for (int j = 0; j < 25; j++) {
-                long x = TestUtils.pickRandom(r);
+                long x = TestUtils.wildLong(r);
                 x &= mask;
                 Assertions.assertEquals(x, type.toSignedLong(type.toUnsignedLong(x)));
                 Assertions.assertEquals(x, type.toUnsignedLong(type.toSignedLong(x)));
@@ -181,7 +180,7 @@ public class UnsignedTest {
         for (int i = 64; i <= 256; i++) {
             final Uint type = new Uint(i);
             for (int j = 0; j < 25; j++) {
-                BigInteger x = BigInteger.valueOf(TestUtils.pickRandom(r));
+                BigInteger x = BigInteger.valueOf(TestUtils.wildLong(r));
                 Assertions.assertEquals(x, type.toSigned(type.toUnsigned(x)));
                 x = x.abs();
                 Assertions.assertEquals(x, type.toUnsigned(type.toSigned(x)));
@@ -191,25 +190,24 @@ public class UnsignedTest {
 
     @Test
     public void testUnsigned() {
-        Uint[] uints = new Uint[257];
-        for (int i = 0; i < uints.length; i++) {
+        final Uint[] uints = new Uint[385];
+        uints[0] = new Uint(1);
+        for (int i = 1; i < uints.length; i++) {
             uints[i] = new Uint(i);
         }
-        Random r = TestUtils.seededRandom();
+        final Random r = TestUtils.seededRandom();
         int plus1 = 0;
         final int n = 1000;
         for (int i = 0; i < n; i++) {
-            byte[] bytes = TestUtils.randomBytes(1 + r.nextInt(32), r);
-            byte[] unsignedBytes = new byte[1 + bytes.length];
-            System.arraycopy(bytes, 0, unsignedBytes, 1, bytes.length);
-            BigInteger a = new BigInteger(bytes);
-            BigInteger b = new BigInteger(unsignedBytes);
-            final int bitlen = b.bitLength();
+            final byte[] bytes = TestUtils.randomBytes(1 + r.nextInt(48), r);
+            final BigInteger signed = new BigInteger(bytes);
+            final BigInteger unsigned = new BigInteger(1, bytes);
+            final int bitlen = unsigned.bitLength();
             try {
-                assertEquals(uints[bitlen].toUnsigned(a), b);
+                test(uints, bitlen, signed, unsigned);
             } catch (IllegalArgumentException iae) {
-                if(iae.getMessage().startsWith("signed has too many bits: ")) {
-                    assertEquals(uints[bitlen + 1].toUnsigned(a), b);
+                if (iae.getMessage().equals("signed has too many bits: " + bitlen + " is not less than " + bitlen)) {
+                    test(uints, bitlen + 1, signed, unsigned);
                     plus1++;
                 } else {
                     throw iae;
@@ -217,6 +215,18 @@ public class UnsignedTest {
             }
         }
         System.out.println((double) plus1 / n);
+    }
+
+    private static void test(Uint[] uints, int bitlen, BigInteger signed, BigInteger unsigned) {
+        Uint uint = uints[bitlen];
+        assertEquals(uint.toUnsigned(signed), unsigned);
+        assertEquals(uint.toSigned(unsigned), signed);
+        if (bitlen < 64) {
+            final long signedL = signed.longValueExact();
+            final long unsignedL = unsigned.longValueExact();
+            assertEquals(uint.toUnsignedLong(signedL), unsignedL);
+            assertEquals(uint.toSignedLong(unsignedL), signedL);
+        }
     }
 
     @Test

@@ -15,24 +15,24 @@
 */
 package com.esaulpaugh.headlong.rlp;
 
-import com.esaulpaugh.headlong.rlp.util.FloatingPoint;
-import com.esaulpaugh.headlong.rlp.util.Notation;
+import com.esaulpaugh.headlong.util.FloatingPoint;
 import com.esaulpaugh.headlong.util.Integers;
 import com.esaulpaugh.headlong.util.Strings;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 /**
  * An immutable view of a portion of a (possibly mutable) byte array containing RLP-encoded data, starting at {@code index}
  * (inclusive) and ending at {@code endIndex} (exclusive), representing a single item (either a string or list). Useful
  * when decoding or otherwise manipulating RLP items.
- *
+ * <p>
  * Created by Evo on 1/19/2017.
  */
-public abstract sealed class RLPItem permits RLPString, RLPList {
+public abstract class RLPItem implements Comparable<RLPItem> {
 
     public static final RLPItem[] EMPTY_ARRAY = new RLPItem[0];
 
@@ -55,47 +55,121 @@ public abstract sealed class RLPItem permits RLPString, RLPList {
         return DataType.type(buffer[index]);
     }
 
-    public abstract boolean isString();
+    public boolean isString() {
+        return false;
+    }
 
-    public abstract boolean isList();
+    public boolean isList() {
+        return false;
+    }
 
-    public abstract RLPString asRLPString();
+    public RLPString asRLPString() {
+        return (RLPString) this;
+    }
 
-    public abstract RLPList asRLPList();
+    public RLPList asRLPList() {
+        return (RLPList) this;
+    }
 
     /**
      * Clones this object.
      *
      * @return an independent and exact copy
-     * @throws IllegalArgumentException if a problem in re-decoding the item occurs
      */
     public abstract RLPItem duplicate();
 
+    /**
+     * Returns the length of this item's RLP encoding, including prefix, in bytes.
+     *
+     * @return  the byte-length of the encoding
+     */
     public final int encodingLength() {
         return endIndex - index;
     }
 
+    /**
+     * Returns this item's RLP encoding.
+     *
+     * @return  this item's bytes, including prefix
+     */
     public final byte[] encoding() {
         return Arrays.copyOfRange(buffer, index, endIndex);
     }
 
+    /**
+     * Returns the payload portion of this item only, and not the prefix.
+     *
+     * @return  the data part of the encoding
+     */
     public final byte[] data() {
         return Arrays.copyOfRange(buffer, dataIndex, endIndex);
     }
 
-    public final int export(byte[] dest, int destIndex) {
+    /**
+     * Inserts this item's RLP encoding into the specified buffer, starting at {@code destIndex} (inclusive) and ending
+     * at {@code destIndex} plus {@link RLPItem#encodingLength()} (exclusive).
+     *
+     * @param dest  the destination array into which the bytes will be copied
+     * @param destIndex the index into the destination array
+     * @return  the index into {@code dest} immediately after the last byte of the copied encoding
+     * @see RLPItem#encoding()
+     */
+    public final int copy(byte[] dest, int destIndex) {
         int len = encodingLength();
         System.arraycopy(buffer, index, dest, destIndex, len);
         return destIndex + len;
     }
 
-    public final int exportData(byte[] dest, int destIndex) {
+    /**
+     * Inserts this item's RLP encoding into the specified {@link ByteBuffer} at its current position.
+     *
+     * @param dest  the data's destination
+     */
+    public final void copy(ByteBuffer dest) {
+        dest.put(buffer, index, encodingLength());
+    }
+
+    /**
+     * Writes this item's RLP encoding to the specified {@link OutputStream}.
+     *
+     * @param dest  the data's destination
+     * @throws IOException  if an I/O error occurs
+     */
+    public final void copy(OutputStream dest) throws IOException {
+        dest.write(buffer, index, encodingLength());
+    }
+
+    /**
+     * Inserts this item's data into the specified buffer, starting at {@code destIndex} (inclusive) and ending at
+     * {@code destIndex} plus {@link RLPItem#dataLength} (exclusive).
+     *
+     * @param dest  the destination array into which the bytes will be copied
+     * @param destIndex the index into the destination array
+     * @return  the index into {@code dest} immediately after the last byte of the copied data
+     * @see RLPItem#data()
+     */
+    public final int copyData(byte[] dest, int destIndex) {
         System.arraycopy(buffer, dataIndex, dest, destIndex, dataLength);
         return destIndex + dataLength;
     }
 
-    public final void exportData(OutputStream os) throws IOException {
-        os.write(buffer, dataIndex, dataLength);
+    /**
+     * Inserts this item's data into the specified {@link ByteBuffer} at its current position.
+     *
+     * @param dest  the data's destination
+     */
+    public final void copyData(ByteBuffer dest) {
+        dest.put(buffer, dataIndex, dataLength);
+    }
+
+    /**
+     * Writes this item's data to the specified {@link OutputStream}.
+     *
+     * @param dest  the data's destination
+     * @throws IOException  if an I/O error occurs
+     */
+    public final void copyData(OutputStream dest) throws IOException {
+        dest.write(buffer, dataIndex, dataLength);
     }
 
     /**
@@ -183,7 +257,8 @@ public abstract sealed class RLPItem permits RLPString, RLPList {
     }
 
     public final BigInteger asBigIntSigned() {
-        return new BigInteger(buffer, dataIndex, dataLength); // Java 9+
+//        return new BigInteger(buffer, dataIndex, dataLength); // Java 9+
+        return new BigInteger(data());
     }
 
     /**
@@ -191,20 +266,38 @@ public abstract sealed class RLPItem permits RLPString, RLPList {
      */
     @Override
     public final int hashCode() {
-        int result = 1;
+        int hash = 1;
         for (int i = index; i < endIndex; i++) {
-            result = 31 * result + buffer[i];
+            hash = 31 * hash + buffer[i];
         }
-        return result;
+        return hash;
     }
 
+    /**
+     * Indicates whether this item's RLP encoding (including prefix) is byte-for-byte identical to another item's. If
+     * the argument object is not an {@link RLPItem}, this method returns {@code false}.
+     *
+     * @param o the object with which to compare this item
+     * @return  {@code true} if the argument is an {@link RLPItem} with an identical encoding; {@code false} otherwise.
+     */
     @Override
     public final boolean equals(Object o) {
-        return o instanceof RLPItem that
-                && Arrays.equals( // Java 9+ vectorizedMismatch
-                this.buffer, this.index, this.endIndex,
-                that.buffer, that.index, that.endIndex
-        );
+        if (o == this) return true;
+        if (!(o instanceof RLPItem)) return false;
+        RLPItem other = (RLPItem) o;
+//        return Arrays.equals( // Java 9+ vectorizedMismatch
+//                this.buffer, this.index, this.endIndex,
+//                other.buffer, other.index, other.endIndex
+//        );
+        return other.encodingLength() == encodingLength() && encodingEquals(other.buffer, other.index);
+    }
+
+    private boolean encodingEquals(byte[] oBuf, int oIdx) {
+        for (int i = this.index; i < this.endIndex; i++) {
+            if (this.buffer[i] != oBuf[oIdx++])
+                return false;
+        }
+        return true;
     }
 
     @Override
@@ -218,5 +311,20 @@ public abstract sealed class RLPItem permits RLPString, RLPList {
      */
     public final String encodingString(int encoding) {
         return Strings.encode(buffer, index, encodingLength(), encoding);
+    }
+
+    @Override
+    public final int compareTo(RLPItem othr) {
+        int thisOffset = this.dataIndex;
+        int othrOffset = othr.dataIndex;
+        final int end = thisOffset + Math.min(this.dataLength, othr.dataLength);
+        while (thisOffset < end) {
+            int t = this.buffer[thisOffset++];
+            int o = othr.buffer[othrOffset++];
+            if (t != o) {
+                return t - o;
+            }
+        }
+        return this.dataLength - othr.dataLength;
     }
 }

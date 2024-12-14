@@ -19,7 +19,12 @@ import com.esaulpaugh.headlong.util.Integers;
 
 import java.nio.ByteBuffer;
 
+/** Represents a long integer type such as int40, int64, uint32, or uint56. */
 public final class LongType extends UnitType<Long> {
+
+    static {
+        UnitType.initInstances(); // will prevent creation of new UnitTypes once finished (except BigDecimalType)
+    }
 
     LongType(String canonicalType, int bitLength, boolean unsigned) {
         super(canonicalType, Long.class, bitLength, unsigned);
@@ -37,22 +42,17 @@ public final class LongType extends UnitType<Long> {
 
     @Override
     Long decode(ByteBuffer bb, byte[] unitBuffer) {
-        return decodeValid(bb, unitBuffer).longValue();
-    }
-
-    @Override
-    public Long parseArgument(String s) {
-        Long lo = Long.parseLong(s);
-        validate(lo);
-        return lo;
+        return unsigned
+                    ? decodeUnsignedLong(bb)
+                    : decodeSignedLong(bb);
     }
 
     static void encodeLong(long value, int byteLen, ByteBuffer dest) {
-        if(value >= 0) {
-            Encoding.insert00Padding(byteLen - Integers.len(value), dest);
+        if (value >= 0) {
+            insert00Padding(byteLen - Integers.len(value), dest);
             Integers.putLong(value, dest);
         } else {
-            Encoding.insertFFPadding(byteLen - lenNegative(value), dest);
+            insertFFPadding(byteLen - lenNegative(value), dest);
             putLongNegative(value, dest);
         }
     }

@@ -15,17 +15,40 @@
 */
 package com.esaulpaugh.headlong.abi;
 
+import com.esaulpaugh.headlong.util.FastHex;
+import com.esaulpaugh.headlong.util.Integers;
+
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.util.Collections;
+import java.util.Arrays;
+import java.util.function.IntFunction;
 
 import static com.esaulpaugh.headlong.abi.UnitType.UNIT_LENGTH_BYTES;
 
 /**
- * Represents a Contract ABI type such as uint256 or decimal. Used to validate, encode, and decode data.
+ * Represents a Contract ABI type such as uint256 or bytes. Used to validate, encode, and decode data.
  *
  * @param <J> this {@link ABIType}'s corresponding Java type
  */
-public abstract sealed class ABIType<J> permits UnitType, ArrayType, TupleType {
+public abstract class ABIType<J> {
+
+    public static final int FLAGS_NONE = 0;
+    /**
+     * Experimental flag which enables an incompatible decode mode. Strongly consider using {@link #FLAGS_NONE} instead.
+     * Behavior is subject to change or removal in future versions.
+     */
+    public static final int FLAG_LEGACY_DECODE = 1;
+    static final int FLAGS_UNSET = 0x80000000;
+    static final int OFFSET_LENGTH_BYTES = UNIT_LENGTH_BYTES;
+    static final byte ZERO_BYTE = (byte) 0x00;
+    static final byte ONE_BYTE = (byte) 0x01;
+
+    private static final byte[] CACHED_ZERO_PADDING = new byte[UNIT_LENGTH_BYTES];
+    private static final byte[] CACHED_NEG1_PADDING = new byte[UNIT_LENGTH_BYTES];
+
+    static {
+        Arrays.fill(CACHED_NEG1_PADDING, (byte) 0xFF);
+    }
 
     public static final int TYPE_CODE_BOOLEAN = 0;
     public static final int TYPE_CODE_BYTE = 1;
@@ -44,7 +67,26 @@ public abstract sealed class ABIType<J> permits UnitType, ArrayType, TupleType {
     final Class<J> clazz;
     final boolean dynamic;
 
-    private String name;
+    {
+        final Class<?> c = this.getClass();
+        @SuppressWarnings("ConstantConditions")
+        final boolean permitted = c == TupleType.class
+                                || c == ArrayType.class
+                                || (this instanceof UnitType
+                                    && (
+                                           c == BigIntegerType.class
+                                        || c == IntType.class
+                                        || c == LongType.class
+                                        || c == BigDecimalType.class
+                                        || (c == AddressType.class && /* enforce singleton */ AddressType.INSTANCE == null)
+                                        || (c == BooleanType.class && /* enforce singleton */ BooleanType.INSTANCE == null)
+                                        )
+                                    )
+                                || (c == ByteType.class && /* enforce singleton */ ByteType.INSTANCE == null) ;
+        if (!permitted) {
+            throw illegalState("class not permitted", "unexpected instance creation rejected: " + c.getName());
+        }
+    }
 
     ABIType(String canonicalType, Class<J> clazz, boolean dynamic) {
         this.canonicalType = canonicalType; // .intern() to save memory and allow == comparison?
@@ -64,14 +106,20 @@ public abstract sealed class ABIType<J> permits UnitType, ArrayType, TupleType {
         return dynamic;
     }
 
-    public final String getName() {
-        return name;
+    public int getFlags() {
+        return FLAGS_UNSET;
     }
 
-    /* don't expose this; cached (nameless) instances are shared and must be immutable */
-    final ABIType<J> setName(String name) {
-        this.name = name;
-        return this;
+    public final <E, ET extends ABIType<E>> ArrayType<ET, E, J> asArrayType() {
+        return (ArrayType<ET, E, J>) this;
+    }
+
+    public final TupleType<? extends Tuple> asTupleType() {
+        return (TupleType<? extends Tuple>) this;
+    }
+
+    public final UnitType<J> asUnitType() {
+        return (UnitType<J>) this;
     }
 
     abstract Class<?> arrayClass();
@@ -83,9 +131,20 @@ public abstract sealed class ABIType<J> permits UnitType, ArrayType, TupleType {
      */
     public abstract int typeCode();
 
-    abstract int byteLength(Object value);
+    abstract int headLength();
 
-    abstract int byteLengthPacked(Object value);
+    int dynamicByteLength(J value) {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * @see #measureEncodedLength
+     * @param value the value to measure
+     * @return the length in bytes of the value when encoded
+     */
+    abstract int byteLength(J value);
+
+    abstract int byteLengthPacked(J value);
 
     /**
      * Checks whether the given object is a valid argument for this {@link ABIType}. Requires an instance of type J.
@@ -95,21 +154,15 @@ public abstract sealed class ABIType<J> permits UnitType, ArrayType, TupleType {
      */
     public abstract int validate(J value);
 
-    public final int _validate(Object value) {
-        return validate(validateClass(value));
-    }
-
-    @SuppressWarnings("unchecked")
-    final J validateClass(Object value) {
-        if(!clazz.isInstance(value)) {
-            if(value == null) {
-                throw new NullPointerException();
+    final void validateClass(J value) {
+        if (!clazz.isInstance(value)) {
+            if (value == null) {
+                throw new IllegalArgumentException("null");
             }
             throw mismatchErr("class",
                     value.getClass().getName(), clazz.getName(),
-                    friendlyClassName(clazz, -1), friendlyClassName(value.getClass(), -1));
+                    clazz.getSimpleName(), value.getClass().getSimpleName());
         }
-        return (J) value;
     }
 
     final IllegalArgumentException mismatchErr(String prefix, String a, String e, String r, String f) {
@@ -119,6 +172,13 @@ public abstract sealed class ABIType<J> permits UnitType, ArrayType, TupleType {
         );
     }
 
+    /**
+     * Returns the length in bytes of the encoding of the value.
+     *
+     * @param value the instance being measured
+     * @return  the number of bytes
+     * @throws IllegalArgumentException if the value is invalid
+     */
     public final int measureEncodedLength(J value) {
         return validate(value);
     }
@@ -126,36 +186,27 @@ public abstract sealed class ABIType<J> permits UnitType, ArrayType, TupleType {
     public final ByteBuffer encode(J value) {
         ByteBuffer dest = ByteBuffer.allocate(validate(value));
         encodeTail(value, dest);
+        dest.flip();
         return dest;
     }
 
-    public final ABIType<J> encode(J value, ByteBuffer dest) {
+    public final void encode(J value, ByteBuffer dest) {
         validate(value);
         encodeTail(value, dest);
-        return this;
     }
 
-    final int encodeHead(Object value, ByteBuffer dest, int offset) {
-        if (!dynamic) {
-            encodeTail(value, dest);
-            return offset;
-        }
-        Encoding.insertIntUnsigned(offset, dest); // insert offset
-        return offset + byteLength(value); // return next offset
-    }
-
-    abstract void encodeTail(Object value, ByteBuffer dest);
+    abstract void encodeTail(J value, ByteBuffer dest);
 
     /**
-     * Returns the non-standard-packed encoding of {@code values}.
+     * Returns the non-standard packed encoding of {@code value}.
      *
      * @param value the argument to be encoded
      * @return the encoding
      */
     public final ByteBuffer encodePacked(J value) {
-        validate(value);
         ByteBuffer dest = ByteBuffer.allocate(byteLengthPacked(value));
-        encodePackedUnchecked(value, dest);
+        encodePacked(value, dest);
+        dest.flip();
         return dest;
     }
 
@@ -170,18 +221,17 @@ public abstract sealed class ABIType<J> permits UnitType, ArrayType, TupleType {
         encodePackedUnchecked(value, dest);
     }
 
-    @SuppressWarnings("unchecked")
-    final void encodeObjectPackedUnchecked(Object value, ByteBuffer dest) {
-        encodePackedUnchecked((J) value ,dest);
-    }
-
     abstract void encodePackedUnchecked(J value, ByteBuffer dest);
 
     public final J decode(byte[] array) {
-        ByteBuffer bb = ByteBuffer.wrap(array);
+        return decode(array, 0, array.length);
+    }
+
+    J decode(byte[] buffer, int offset, int len) {
+        ByteBuffer bb = ByteBuffer.wrap(buffer, offset, len);
         J decoded = decode(bb);
         final int remaining = bb.remaining();
-        if(remaining == 0) {
+        if (remaining == 0) {
             return decoded;
         }
         throw new IllegalArgumentException("unconsumed bytes: " + remaining + " remaining");
@@ -203,16 +253,15 @@ public abstract sealed class ABIType<J> permits UnitType, ArrayType, TupleType {
 
     @SuppressWarnings("unchecked")
     public final J decodePacked(byte[] buffer) {
-        return (J) PackedDecoder.decode(TupleType.wrap(Collections.singletonList(this)), buffer).get(0);
+        PackedDecoder.checkDynamics(this);
+        final J decoded = (J) PackedDecoder.decode(this, ByteBuffer.wrap(buffer), buffer.length);
+        validate(decoded);
+        final int remaining = buffer.length - byteLengthPacked(decoded);
+        if (remaining == 0) {
+            return decoded;
+        }
+        throw new IllegalArgumentException("unconsumed bytes: " + remaining + " remaining");
     }
-
-    /**
-     * Parses and validates a string representation of J.
-     *
-     * @param s the object's string representation
-     * @return  the object
-     */
-    public abstract J parseArgument(String s);
 
     static byte[] newUnitBuffer() {
         return new byte[UNIT_LENGTH_BYTES];
@@ -220,12 +269,17 @@ public abstract sealed class ABIType<J> permits UnitType, ArrayType, TupleType {
 
     @Override
     public final int hashCode() {
-        return canonicalType.hashCode();
+        return 31 * canonicalType.hashCode() + getFlags();
     }
 
     @Override
     public final boolean equals(Object o) {
-        return o instanceof ABIType<?> that && this.canonicalType.equals(that.canonicalType);
+        if (o == this) return true;
+        if (o instanceof ABIType) {
+            final ABIType<?> other = (ABIType<?>) o;
+            return other.canonicalType.equals(this.canonicalType) && other.getFlags() == this.getFlags();
+        }
+        return false;
     }
 
     @Override
@@ -233,38 +287,89 @@ public abstract sealed class ABIType<J> permits UnitType, ArrayType, TupleType {
         return canonicalType;
     }
 
-    static String friendlyClassName(Class<?> clazz, int arrayLen) {
-        final String className = clazz.getName();
-        final int split = className.lastIndexOf('[') + 1;
-        final boolean hasArraySuffix = split > 0;
-        final StringBuilder sb = new StringBuilder();
-        final String base = hasArraySuffix ? className.substring(split) : className;
-        switch (base) {
-        case "B" -> sb.append("byte");
-        case "S" -> sb.append("short");
-        case "I" -> sb.append("int");
-        case "J" -> sb.append("long");
-        case "F" -> sb.append("float");
-        case "D" -> sb.append("double");
-        case "C" -> sb.append("char");
-        case "Z" -> sb.append("boolean");
-        default -> {
-            int lastDotIndex = base.lastIndexOf('.');
-            if (lastDotIndex != -1) {
-                sb.append(base, lastDotIndex + 1, base.length() - (base.charAt(0) == 'L' ? 1 : 0));
-            }
+    static void insertIntUnsigned(int val, ByteBuffer dest) {
+        insert00Padding(UNIT_LENGTH_BYTES - Integer.BYTES, dest);
+        dest.putInt(val);
+    }
+
+    static void insertInt(long val, ByteBuffer dest) {
+        insertPadding(UNIT_LENGTH_BYTES - Long.BYTES, val < 0, dest);
+        dest.putLong(val);
+    }
+
+    static void insertInt(BigInteger signed, int paddedLen, ByteBuffer dest) {
+        final byte[] arr = signed.toByteArray();
+        if (arr.length <= paddedLen) {
+            insertPadding(paddedLen - arr.length, signed.signum() < 0, dest);
+            dest.put(arr, 0, arr.length);
+        } else {
+            dest.put(arr, 1, paddedLen);
         }
+    }
+
+    private static void insertPadding(int n, boolean negativeOnes, ByteBuffer dest) {
+        if (negativeOnes) {
+            insertFFPadding(n, dest);
+        } else {
+            insert00Padding(n, dest);
         }
-        if(hasArraySuffix) {
-            int i = 0;
-            if(arrayLen >= 0) {
-                sb.append('[').append(arrayLen).append(']');
-                i++;
+    }
+
+    static void insert00Padding(int n, ByteBuffer dest) {
+        dest.put(CACHED_ZERO_PADDING, 0, n);
+    }
+
+    static void insertFFPadding(int n, ByteBuffer dest) {
+        dest.put(CACHED_NEG1_PADDING, 0, n);
+    }
+
+    private static final int UNPADDED_LABEL_LEN = 6;
+    static final String ID_LABEL_PADDED = "ID       ";
+    static final int PADDED_LABEL_LEN = ID_LABEL_PADDED.length();
+    static final int CHARS_PER_LINE = "\n".length() + PADDED_LABEL_LEN + UNIT_LENGTH_BYTES * FastHex.CHARS_PER_BYTE;
+
+    public static String format(byte[] abi) {
+        return format(abi, ABIType::hexLabel);
+    }
+
+    public static String format(byte[] abi, IntFunction<String> labeler) {
+        Integers.checkIsMultiple(abi.length, UNIT_LENGTH_BYTES);
+        return finishFormat(abi, 0, abi.length, labeler, new StringBuilder(abi.length / UNIT_LENGTH_BYTES * CHARS_PER_LINE));
+    }
+
+    static String finishFormat(byte[] buffer, int offset, int end, IntFunction<String> labeler, StringBuilder sb) {
+        int row = 0;
+        while (offset < end) {
+            if (offset != 0) {
+                sb.append('\n');
             }
-            while (i++ < split) {
-                sb.append("[]");
-            }
+            sb.append(labeler.apply(row++))
+                    .append(FastHex.encodeToString(buffer, offset, UNIT_LENGTH_BYTES));
+            offset += UNIT_LENGTH_BYTES;
         }
         return sb.toString();
+    }
+
+    static String hexLabel(int row) {
+        String hexLabel = Integer.toHexString(row * UNIT_LENGTH_BYTES);
+        return padLabel(UNPADDED_LABEL_LEN - hexLabel.length(), hexLabel);
+    }
+
+    static String padLabel(int leftPadding, String unpadded) {
+        StringBuilder padded = new StringBuilder(PADDED_LABEL_LEN);
+        int i;
+        for (i = 0; i < leftPadding; i++) {
+            padded.append(' ');
+        }
+        padded.append(unpadded);
+        for (i += unpadded.length(); i < PADDED_LABEL_LEN; i++) {
+            padded.append(' ');
+        }
+        return padded.toString();
+    }
+
+    static IllegalStateException illegalState(String msg, String printMsg) {
+        System.err.println(printMsg);
+        return new IllegalStateException(msg);
     }
 }

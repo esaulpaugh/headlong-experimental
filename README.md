@@ -1,77 +1,111 @@
-[![Maven Central](https://img.shields.io/maven-central/v/com.esaulpaugh/headlong.svg?label=Maven%20Central)](https://search.maven.org/search?q=g:%22com.esaulpaugh%22%20AND%20a:%22headlong%22)
+[![Maven Central](https://img.shields.io/maven-central/v/com.esaulpaugh/headlong.svg?label=Maven%20Central)](https://central.sonatype.com/artifact/com.esaulpaugh/headlong)
 [![Apache License, Version 2.0, January 2004](https://img.shields.io/github/license/apache/maven.svg?label=License)](https://www.apache.org/licenses/LICENSE-2.0)
 [![jdk1.8+](https://img.shields.io/badge/JDK-1.8+-blue.svg)](https://openjdk.java.net/)
-[![Java CI](https://github.com/esaulpaugh/headlong/workflows/Java%20CI/badge.svg)](https://github.com/esaulpaugh/headlong/actions?query=workflow%3A"Java+CI")
+[![Java CI GraalVM Maven](https://github.com/esaulpaugh/headlong/actions/workflows/graalvm.yml/badge.svg)](https://github.com/esaulpaugh/headlong/actions/workflows/graalvm.yml)
 [![Gitter](https://badges.gitter.im/esaulpaugh-headlong/community.svg)](https://gitter.im/esaulpaugh-headlong/community)
 
-Contract ABI (v2) and Recursive Length Prefix made easy for the JVM. Everything heavily optimized for maximum throughput (ABI function call encoding up to 500x faster than a popular competitor. One function init plus one encode up to 50x faster (run benchmarks with `gradle jmh` or run the maven-generated benchmarks jar)).
+Contract ABI and Recursive Length Prefix made easy for the JVM.
 
 ABI spec: https://solidity.readthedocs.io/en/latest/abi-spec.html
 
-RLP spec: https://github.com/ethereum/wiki/wiki/RLP
+RLP spec: https://ethereum.org/en/developers/docs/data-structures-and-encoding/rlp
 
-SHA-256 (headlong-5.6.1.jar): 40b52b633b212402459e2e83cd4035779fb175944b9daa9c608e2f4753ed032e
+SHA-256 (headlong-12.3.3.jar): 9b577af538d30ffc05133425c8b0bff3a79bcba99955b3222dd2d825b27150cc
 
 ## Usage
 
-### ABI codec
+### ABI package
 
 #### Encoding Function Calls
 
 ```java
-Function f = new Function("baz(uint32,bool)"); // canonicalizes and parses any signature
+Function baz = Function.parse("baz(uint32,bool)"); // canonicalizes and parses any signature
 // or
-Function f2 = Function.fromJson("{\"type\":\"function\",\"name\":\"foo\",\"inputs\":[{\"name\":\"complex_nums\",\"type\":\"tuple[]\",\"components\":[{\"name\":\"real\",\"type\":\"decimal\"},{\"name\":\"imaginary\",\"type\":\"decimal\"}]}]}");
+Function f2 = Function.fromJson("{\"type\":\"function\",\"name\":\"foo\",\"inputs\":[{\"name\":\"complex_nums\",\"type\":\"tuple[]\",\"components\":[{\"name\":\"real\",\"type\":\"fixed168x10\"},{\"name\":\"imaginary\",\"type\":\"fixed168x10\"}]}]}");
 
-Tuple args = new Tuple(69L, true);
+Pair<Long, Boolean> bazArgs = Tuple.of(69L, true);
+Tuple complexNums = Single.of(new Tuple[] { Tuple.of(new BigDecimal("0.0090000000"), new BigDecimal("1.9500000000")) });
 
 // Two equivalent styles:
-ByteBuffer one = f.encodeCall(args);
-ByteBuffer two = f.encodeCallWithArgs(69L, true);
+ByteBuffer bazCall = baz.encodeCall(bazArgs);
+ByteBuffer bazCall2 = baz.encodeCallWithArgs(69L, true);
 
-System.out.println(Function.formatCall(one.array())); // a multi-line hex representation
-System.out.println(f.decodeCall(two.flip()).equals(args));
+System.out.println("baz call hex:\n" + Strings.encode(bazCall) + "\n"); // hexadecimal encoding (without 0x prefix)
+
+Tuple recoveredArgs = baz.decodeCall(bazCall2); // decode the encoding back to the original args
+
+System.out.println("baz args:\n" + recoveredArgs + "\n"); // toString()
+System.out.println("equal:\n" + recoveredArgs.equals(bazArgs) + "\n"); // test for equality
+
+System.out.println("baz call debug:\n" + baz.annotateCall(bazCall.array()) + "\n"); // human-readable, for debugging function calls (expects input to start with 4-byte selector)
+System.out.println("baz args debug:\n" + baz.getInputs().annotate(bazArgs) + "\n"); // human-readable, for debugging encodings without a selector
+System.out.println("f2 call debug:\n" + f2.annotateCall(complexNums) + "\n");
+System.out.println("f2 args debug:\n" + f2.getInputs().annotate(complexNums));
 ```
 
 #### Decoding Return Values
 
 ```java
-Function foo = new Function("foo((fixed[],int8)[1][][5])", "(ufixed,string)");
+Function foo = Function.parse("foo((fixed[],int8)[1][][5])", "(int,string)");
 
-// decode return type (ufixed,string)
+// decode return type (int256,string)
 Tuple decoded = foo.decodeReturn(
-        FastHex.decode(
-                "0000000000000000000000000000000000000000000000000000000000000045"
-              + "0000000000000000000000000000000000000000000000000000000000000040"
-              + "000000000000000000000000000000000000000000000000000000000000000e"
-              + "59616f62616e6745696768747939000000000000000000000000000000000000"
-        )
+    FastHex.decode(
+          "000000000000000000000000000000000000000000000000000000000000002A"
+        + "0000000000000000000000000000000000000000000000000000000000000040"
+        + "000000000000000000000000000000000000000000000000000000000000000e"
+        + "59616f62616e6745696768747939000000000000000000000000000000000000"
+    )
 );
-        
-System.out.println(decoded.equals(new Tuple(new BigDecimal(BigInteger.valueOf(69L), 18), "YaobangEighty9")));
+
+System.out.println(decoded.equals(Tuple.of(BigInteger.valueOf(42L), "YaobangEighty9")));
 ```
 
 ```java
-Function fooTwo = new Function("fooTwo()", "(uint8)");
-int returned = fooTwo.decodeSingletonReturn(FastHex.decode("00000000000000000000000000000000000000000000000000000000000000FF"));
+Function fooTwo = Function.parse("fooTwo()", "(uint8)");
+int returned = fooTwo.decodeSingletonReturn(FastHex.decode("00000000000000000000000000000000000000000000000000000000000000FF")); // uint8 corresponds to int
+System.out.println(returned);
 ```
 
-#### Creating types directly
+#### Using TupleType
 
 ```java
-BooleanType bool = TypeFactory.create("bool");
-IntType uint24 = TypeFactory.create("uint24");
+TupleType<Tuple> tt = TupleType.parse("(bool,address,int72[][])");
+ByteBuffer b0 = tt.encode(Tuple.of(false, Address.wrap("0x52908400098527886E0F7030069857D2E4169EE7"), new BigInteger[0][]));
+// Tuple t = tt.decode(b0); // decode the tuple (has the side effect of advancing the ByteBuffer's position)
+// or...
+Address a = tt.decode(b0, 1); // decode only index 1
+System.out.println(a);
+Tuple t2 = tt.decode(b0, 0, 2); // decode only indices 0 and 2
+System.out.println(t2);
+
+ByteBuffer b1 = tt.<ABIType<BigInteger[][]>>get(2).encode(new BigInteger[][] {  }); // encode only int72[][]
 ```
 
-### RLP codec
+#### Misc
 
 ```java
-// for an example class Student
+Event<?> event = Event.fromJson("{\"type\":\"event\",\"name\":\"an_event\",\"inputs\":[{\"name\":\"a\",\"type\":\"bytes\",\"indexed\":true},{\"name\":\"b\",\"type\":\"uint256\",\"indexed\":false}],\"anonymous\":true}");
+Tuple args = event.decodeArgs(new byte[][] { new byte[32] }, new byte[32]);
+System.out.println(event);
+System.out.println(args);
+
+// create any type directly (advanced)
+ArrayType<ABIType<Object>, ?, Object> at = TypeFactory.create("(address,int)[]");
+ArrayType<TupleType<Tuple>, Tuple, Tuple[]> at2 = TypeFactory.create("(address,int)[]");
+ArrayType<TupleType<Pair<Address, BigInteger>>, Pair<Address, BigInteger>, Pair<Address, BigInteger>[]> at3 = TypeFactory.create("(address,int)[]");
+ABIType<Object> unknown = TypeFactory.create(at.getCanonicalType());
+```
+
+### RLP package
+
+```java
+// for an example class Student implementing some example interface
 public Student(byte[] rlp) {
-    Iterator<RLPItem> iter = RLP_STRICT.sequenceIterator(rlp);
+    Iterator<RLPItem> iter = RLPDecoder.RLP_STRICT.sequenceIterator(rlp);
     
-    this.name = iter.next().asString(UTF_8);
-    this.gpa = iter.next().asFloat();
+    this.name = iter.next().asString(Strings.UTF_8);
+    this.gpa = iter.next().asFloat(false);
     this.publicKey = iter.next().asBytes();
     this.balance = new BigDecimal(iter.next().asBigInt(), iter.next().asInt());
 }
@@ -80,7 +114,7 @@ public Student(byte[] rlp) {
 public Object[] toObjectArray() {
     return new Object[] {
             // instances of byte[]
-            Strings.decode(name, UTF_8),
+            Strings.decode(name, Strings.UTF_8),
             FloatingPoint.toBytes(gpa),
             publicKey,
             balance.unscaledValue().toByteArray(),
@@ -91,7 +125,7 @@ public Object[] toObjectArray() {
 
 @Override
 public byte[] toRLP() {
-    return RLPEncoder.encodeSequentially(toObjectArray());
+    return RLPEncoder.sequence(toObjectArray());
 }
 ```
 
@@ -103,15 +137,15 @@ Or build locally:
 
 Clone the project and install to your local maven repository using `gradle publishToMavenLocal` or `mvn install`, then declare it as a dependency:
 
-```groovy
-implementation 'com.esaulpaugh:headlong:5.6.2-SNAPSHOT'
+```kotlin
+implementation("com.esaulpaugh:headlong:12.3.4-SNAPSHOT")
 ```
 
 ```xml
 <dependency>
     <groupId>com.esaulpaugh</groupId>
     <artifactId>headlong</artifactId>
-    <version>5.6.2-SNAPSHOT</version>
+    <version>12.3.4-SNAPSHOT</version>
 </dependency>
 ```
 Alternatively:
@@ -121,11 +155,16 @@ Alternatively:
 * Execute `ant all build-jar` which outputs to `build/lib`
 * Add headlong as a project dependency
 
+## Benchmarks
+
+![Screenshot](https://github.com/esaulpaugh/headlong/blob/master/benchmark_results.PNG)
+GraalVM 20.0.2 on x86-64
+
 ## Command line interface
 
 https://github.com/esaulpaugh/headlong-cli
 
-## Demo app
+## Example Android app
 
 https://github.com/esaulpaugh/headlong-android
 
@@ -138,8 +177,8 @@ Also includes optimized implementations of:
 * Keccak
 * hexadecimal
 
-headlong depends on gson v2.8.9. Test suite should take less than one minute to run. Test packages require junit. Jar size is ~116 KiB. Java 8+.
+headlong depends on gson v2.10.1 for the abi package. Test suite should take less than one minute to run. Test packages require junit. Jar size is ~128 KiB. Java 8+.
 
-See the wiki for more, such as TupleTypes, packed encoding (and decoding), and RLP Object Notation: https://github.com/esaulpaugh/headlong/wiki
+See the wiki for more, such as packed encoding (and decoding) and RLP Object Notation: https://github.com/esaulpaugh/headlong/wiki
 
 Licensed under Apache 2.0 terms

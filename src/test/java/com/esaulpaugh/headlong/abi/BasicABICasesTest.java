@@ -16,7 +16,6 @@
 package com.esaulpaugh.headlong.abi;
 
 import com.esaulpaugh.headlong.TestUtils;
-import com.esaulpaugh.headlong.abi.util.JsonUtils;
 import com.esaulpaugh.headlong.util.Strings;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -25,9 +24,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -41,13 +38,27 @@ public class BasicABICasesTest {
 
     static {
         try {
-            TESTS = JsonUtils.parseObject(TestUtils.readFileResourceAsString(RESOURCE)).entrySet();
+            TESTS = TestUtils.parseObject(TestUtils.readFileResourceAsString(RESOURCE)).entrySet();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
 
-    private record ABITestCase(String key, JsonArray args, String result, JsonArray types, Function function) {
+    private static class ABITestCase {
+        final String key;
+
+        final JsonArray args;
+        final JsonArray types;
+        final String result;
+        final Function function;
+
+        private ABITestCase(String key, JsonArray args, String result, JsonArray types, Function function) {
+            this.key = key;
+            this.args = args;
+            this.types = types;
+            this.result = result;
+            this.function = function;
+        }
 
         static ABITestCase forKey(String key) {
             JsonObject jsonObject = null;
@@ -62,16 +73,16 @@ public class BasicABICasesTest {
                 throw new RuntimeException(key + " not found");
             }
 
-            JsonArray args = JsonUtils.getArray(jsonObject, "args");
-            String result = JsonUtils.getString(jsonObject, "result");
-            JsonArray types = JsonUtils.getArray(jsonObject, "types");
+            JsonArray args = jsonObject.getAsJsonArray("args");
+            String result = jsonObject.get("result").getAsString();
+            JsonArray types = jsonObject.getAsJsonArray("types");
 
             final int size = types.size();
-            final List<ABIType<?>> list = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                list.add(TypeFactory.create(types.get(i).getAsString(), null));
+            final ABIType<?>[] arr = new ABIType<?>[size];
+            for (int i = 0; i < arr.length; i++) {
+                arr[i] = TypeFactory.create(types.get(i).getAsString());
             }
-            TupleType tt = TupleType.wrap(list);
+            TupleType<?> tt = wrap(arr);
 
             System.out.println(tt.canonicalType);
 
@@ -80,7 +91,7 @@ public class BasicABICasesTest {
 
         void test(Object[] argsArray) {
 
-            Tuple t = new Tuple(argsArray);
+            Tuple t = Tuple.from(argsArray);
             ByteBuffer bb = function.encodeCall(t);
 
             System.out.println("expected:   " + result);
@@ -88,6 +99,23 @@ public class BasicABICasesTest {
 
             assertArrayEquals(Strings.decode(result), Arrays.copyOfRange(bb.array(), Function.SELECTOR_LEN, bb.limit()));
         }
+    }
+
+    private static TupleType<?> wrap(ABIType<?>... elements) {
+        final StringBuilder canonicalBuilder = new StringBuilder("(");
+        boolean dynamic = false;
+        int flags = ABIType.FLAGS_UNSET;
+        for (ABIType<?> e : elements) {
+            canonicalBuilder.append(e.canonicalType).append(',');
+            dynamic |= e.isDynamic();
+            if (e.getFlags() != flags) {
+                if (flags != ABIType.FLAGS_UNSET) {
+                    throw new IllegalArgumentException();
+                }
+                flags = e.getFlags();
+            }
+        }
+        return new TupleType<>(TestUtils.completeTupleTypeString(canonicalBuilder), dynamic, elements, null, null, null, flags);
     }
 
     @Test

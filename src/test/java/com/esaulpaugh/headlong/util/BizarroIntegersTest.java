@@ -13,15 +13,14 @@
    See the License for the specific language governing permissions and
    limitations under the License.
 */
-package com.esaulpaugh.headlong.abi.util;
+package com.esaulpaugh.headlong.util;
 
 import com.esaulpaugh.headlong.TestUtils;
-import com.esaulpaugh.headlong.util.IntegersTest;
-import com.esaulpaugh.headlong.util.Strings;
 import org.junit.jupiter.api.Test;
 
 import java.util.Random;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.TimeoutException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -71,8 +70,13 @@ public class BizarroIntegersTest {
     }
 
     @Test
-    public void putGetInt() {
-        new ForkJoinPool().invoke(new BizarroIntTask(Integer.MIN_VALUE, Integer.MAX_VALUE));
+    public void putGetInt() throws InterruptedException, TimeoutException {
+        ForkJoinPool fjp = new ForkJoinPool();
+        try {
+            fjp.invoke(new BizarroIntTask(Integer.MIN_VALUE, Integer.MAX_VALUE));
+        } finally {
+            TestUtils.requireNoTimeout(TestUtils.shutdownAwait(fjp, 10L));
+        }
     }
 
     @Test
@@ -80,7 +84,7 @@ public class BizarroIntegersTest {
         Random rand = TestUtils.seededRandom();
         byte[] eight = new byte[8];
         for (long i = 0; i < 20_000; i++) {
-            long lo = TestUtils.pickRandom(rand);
+            long lo = TestUtils.wildLong(rand);
             int n = BizarroInts.putLong(lo, eight, 0);
             long r = BizarroInts.getLong(eight, 0, n);
             if(lo != r) {
@@ -113,15 +117,20 @@ public class BizarroIntegersTest {
     }
 
     @Test
-    public void lenInt() {
-        new ForkJoinPool().invoke(new BizarroLenIntTask(Integer.MIN_VALUE, Integer.MAX_VALUE));
+    public void lenInt() throws InterruptedException, TimeoutException {
+        ForkJoinPool fjp = new ForkJoinPool();
+        try {
+            fjp.invoke(new BizarroLenIntTask(Integer.MIN_VALUE, Integer.MAX_VALUE));
+        } finally {
+            TestUtils.requireNoTimeout(TestUtils.shutdownAwait(fjp, 10L));
+        }
     }
 
     @Test
     public void lenLong() {
         Random rand = TestUtils.seededRandom();
         for (int i = 0; i < 30_000; i++) {
-            long lo = TestUtils.pickRandom(rand);
+            long lo = TestUtils.wildLong(rand);
             int expectedLen = lo >= 0 || lo < -72_057_594_037_927_936L ? 8
                     : lo < -281_474_976_710_656L ? 7
                     : lo < -1_099_511_627_776L ? 6

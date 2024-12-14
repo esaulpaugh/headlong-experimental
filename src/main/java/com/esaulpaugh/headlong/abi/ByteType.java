@@ -17,13 +17,13 @@ package com.esaulpaugh.headlong.abi;
 
 import java.nio.ByteBuffer;
 
-/** Currently used only as the element type for some {@link ArrayType}s. */
-public final class ByteType extends UnitType<Byte> {
+/** Currently used only as the element type for some {@link ArrayType}s which are base types. */
+public final class ByteType extends ABIType<Byte> {
 
-    static final ByteType SIGNED = new ByteType();
+    static final ByteType INSTANCE = new ByteType();
 
     private ByteType() {
-        super("int8", Byte.class, Byte.SIZE, false);
+        super("BYTE", Byte.class, false);
     }
 
     @Override
@@ -37,23 +37,37 @@ public final class ByteType extends UnitType<Byte> {
     }
 
     @Override
-    int byteLengthPacked(Object value) {
-        return Byte.BYTES;
+    int headLength() {
+        return 1;
     }
 
     @Override
-    public int validate(Byte value) {
-        return UNIT_LENGTH_BYTES;
+    int byteLength(Byte value) {
+        return 1;
+    }
+
+    @Override
+    int byteLengthPacked(Byte value) {
+        return 1;
+    }
+
+    @Override
+    public int validate(Byte value) { // gives ClassCastException for non-Byte types
+        return 1;
+    }
+
+    @Override
+    void encodeTail(Byte value, ByteBuffer dest) {
+        dest.put(value);
+    }
+
+    @Override
+    void encodePackedUnchecked(Byte value, ByteBuffer dest) {
+        dest.put(value);
     }
 
     @Override
     Byte decode(ByteBuffer bb, byte[] unitBuffer) {
-        return decodeValid(bb, unitBuffer).byteValue();
-    }
-
-    @Override
-    public Byte parseArgument(String s) {
-        return Byte.parseByte(s);
-//        validate(b);
+        return bb.get();
     }
 }

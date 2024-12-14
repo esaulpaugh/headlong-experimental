@@ -38,9 +38,9 @@ public class ABIStudent implements ABIEncodeable {
 
     public ABIStudent(Tuple values) {
         this(
-                (String) values.get(0),
+                values.get(0),
                 ((BigDecimal) values.get(1)).floatValue(),
-                (byte[]) values.get(2),
+                values.get(2),
                 new BigDecimal(new BigInteger((byte[]) values.get(3)), (int) values.get(4))
         );
     }
@@ -81,8 +81,9 @@ public class ABIStudent implements ABIEncodeable {
         return name + ", " + gpa + ", " + new BigInteger(publicKey) + ", $" + balance;
     }
 
+    @SuppressWarnings("unchecked")
     @Override
-    public Tuple toTuple() {
-        return new Tuple(name, BigDecimal.valueOf(gpa), publicKey, balance.unscaledValue().toByteArray(), balance.scale());
+    public <T extends Tuple> T toTuple() {
+        return (T) Tuple.of(name, BigDecimal.valueOf(gpa), publicKey, balance.unscaledValue().toByteArray(), balance.scale());
     }
 }

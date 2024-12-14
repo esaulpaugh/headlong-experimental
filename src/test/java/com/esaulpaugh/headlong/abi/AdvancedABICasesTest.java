@@ -13,10 +13,7 @@
 package com.esaulpaugh.headlong.abi;
 
 import com.esaulpaugh.headlong.TestUtils;
-import com.esaulpaugh.headlong.abi.util.Deserializer;
-import com.esaulpaugh.headlong.abi.util.Formatter;
 import com.esaulpaugh.headlong.util.FastHex;
-import com.esaulpaugh.headlong.abi.util.JsonUtils;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -40,7 +37,7 @@ public class AdvancedABICasesTest {
         private final String name;
 
         private final Function function;
-        private final TupleType types;
+        private final TupleType<Tuple> types;
         private final Tuple values;
         private final byte[] result;
 
@@ -71,8 +68,8 @@ public class AdvancedABICasesTest {
                     System.out.println(this.function.getCanonicalSignature() + ", " + this.values);
                     System.out.println(buildCallComparison(result, encoding));
                 } else {
-                    String[] resultTokens = Formatter.format(result).split("[\n]");
-                    String[] encodingTokens = Formatter.format(encoding).split("[\n]");
+                    String[] resultTokens = ABIType.format(result).split("\n");
+                    String[] encodingTokens = ABIType.format(encoding).split("\n");
                     System.out.println(types.canonicalType);
                     int i = 0;
                     for (; i < resultTokens.length; i++) {
@@ -81,7 +78,7 @@ public class AdvancedABICasesTest {
                         System.out.println(r + " " + e + (r.equals(e) ? "" : " ****"));
                     }
                     for (; i < encodingTokens.length; i++) {
-                        System.out.println("----------------------------------------------------------------" + " " + encodingTokens[i]);
+                        System.out.println("---------------------------------------------------------------- " + encodingTokens[i]);
                     }
                 }
                 // return false;
@@ -114,26 +111,25 @@ public class AdvancedABICasesTest {
 
     @Test
     public void testAbiV2Cases() throws IOException {
-        runCases(JsonUtils.parseArray(TestUtils.readFileResourceAsString(ABI_V2_CASES_PATH)), false);
+        runCases(TestUtils.parseArray(TestUtils.readFileResourceAsString(ABI_V2_CASES_PATH)), false);
     }
 
     @Test
     public void testHeadlongCases() throws IOException {
-        runCases(JsonUtils.parseArray(TestUtils.readFileResourceAsString(HEADLONG_CASES_PATH)), true);
+        runCases(TestUtils.parseArray(TestUtils.readFileResourceAsString(HEADLONG_CASES_PATH)), true);
     }
 
-    private static final String HEADLONG_X = """
-            {
-                "name": "headlong_X",
-                "types": "[\\"uint24\\",\\"address\\"]",
-                "values": "[{\\"type\\":\\"number\\",\\"value\\":\\"237\\"},{\\"type\\":\\"string\\",\\"value\\":\\"0x0000000000000A6E5195B6E7458D14A52989dAA9\\"}]",
-                "result": "0x9808bf8500000000000000000000000000000000000000000000000000000000000000ed0000000000000000000000000000000000000a6e5195b6e7458d14a52989daa9",
-                "version": "5.6.0+commit.6447409"
-              }""";
+    private static final String HEADLONG_X = "{\n" +
+            "    \"name\": \"headlong_X\",\n" +
+            "    \"types\": \"[\\\"uint24\\\",\\\"address\\\"]\",\n" +
+            "    \"values\": \"[{\\\"type\\\":\\\"number\\\",\\\"value\\\":\\\"237\\\"},{\\\"type\\\":\\\"string\\\",\\\"value\\\":\\\"0x0000000000000A6E5195B6E7458D14A52989dAA9\\\"}]\",\n" +
+            "    \"result\": \"0x9808bf8500000000000000000000000000000000000000000000000000000000000000ed0000000000000000000000000000000000000a6e5195b6e7458d14a52989daa9\",\n" +
+            "    \"version\": \"5.6.0+commit.6447409\"\n" +
+            "  }";
 
     @Test
     public void testCase() {
-        TestCase tc = new TestCase(JsonUtils.parseObject(HEADLONG_X), true);
+        TestCase tc = new TestCase(TestUtils.parseObject(HEADLONG_X), true);
         tc.test(true);
     }
 

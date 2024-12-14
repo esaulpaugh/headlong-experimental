@@ -2,6 +2,7 @@
 /build
 /classes
 /out
+/src/jmh/generated
 /target
 /.gradle
 /.idea
@@ -11,4 +12,6 @@
 *.iml
 *.log
 gradle.properties
-headlong.properties
+
+# macOS
+.DS_Store

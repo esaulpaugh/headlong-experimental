@@ -15,17 +15,16 @@
 */
 package com.esaulpaugh.headlong.abi;
 
-import com.esaulpaugh.headlong.abi.util.JsonUtils;
 import com.google.gson.JsonObject;
 
-/** Supertype of json-encodeable types {@link Function}, {@link Event}, and {@link ContractError}.*/
-public sealed interface ABIObject permits Function, Event, ContractError {
+/** Supertype of json-encodeable types {@link Function}, {@link Event}, and {@link ContractError}. */
+public interface ABIObject {
 
     TypeEnum getType();
 
     String getName();
 
-    TupleType getInputs();
+    <T extends Tuple> TupleType<T> getInputs();
 
     String getCanonicalSignature();
 
@@ -49,19 +48,29 @@ public sealed interface ABIObject permits Function, Event, ContractError {
         return (Function) this;
     }
 
-    default Event asEvent() {
-        return (Event) this;
+    @SuppressWarnings("unchecked")
+    default <X extends Tuple> Event<X> asEvent() {
+        return (Event<X>) this;
     }
 
-    default ContractError asContractError() {
-        return (ContractError) this;
+    @SuppressWarnings("unchecked")
+    default <X extends Tuple> ContractError<X> asContractError() {
+        return (ContractError<X>) this;
     }
 
-    static ABIObject fromJson(String json) {
-        return ABIJSON.parseABIObject(JsonUtils.parseObject(json));
+    static <T extends ABIObject> T fromJson(String json) {
+        return fromJson(ABIType.FLAGS_NONE, json);
     }
 
-    static ABIObject fromJsonObject(JsonObject object) {
-        return ABIJSON.parseABIObject(object);
+    /**
+     * Constructs an {@link ABIObject} from a {@link JsonObject}.
+     *
+     * @param flags     {@link ABIType#FLAGS_NONE} recommended. See also {@link ABIType#FLAG_LEGACY_DECODE}
+     * @param json    the JSON object string to decode
+     * @return  the {@link ABIObject} represented by {@code object}
+     * @param <T>   {@link Function}, {@link Event}, {@link ContractError}, or supertype {@link ABIObject}
+     */
+    static <T extends ABIObject> T fromJson(int flags, String json) {
+        return ABIJSON.parseABIObject(json, ABIJSON.ALL, Function.newDefaultDigest(), flags);
     }
 }

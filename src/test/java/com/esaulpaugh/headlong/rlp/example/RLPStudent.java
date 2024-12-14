@@ -17,7 +17,7 @@ package com.esaulpaugh.headlong.rlp.example;
 
 import com.esaulpaugh.headlong.rlp.RLPEncoder;
 import com.esaulpaugh.headlong.rlp.RLPItem;
-import com.esaulpaugh.headlong.rlp.util.FloatingPoint;
+import com.esaulpaugh.headlong.util.FloatingPoint;
 import com.esaulpaugh.headlong.util.Integers;
 import com.esaulpaugh.headlong.util.Strings;
 
@@ -112,11 +112,11 @@ public class RLPStudent implements RLPEncodeable {
 
     @Override
     public byte[] toRLP() {
-        return RLPEncoder.encodeSequentially(toObjectArray());
+        return RLPEncoder.sequence(toObjectArray());
     }
 
     @Override
     public void toRLP(ByteBuffer dest) {
-        RLPEncoder.encodeSequentially(toObjectArray(), dest);
+        RLPEncoder.putSequence(Arrays.asList(toObjectArray()), dest);
     }
 }

@@ -15,20 +15,22 @@
 */
 package com.esaulpaugh.headlong.abi;
 
-import java.math.BigInteger;
 import java.nio.ByteBuffer;
 
 /** Unsigned 0 or 1. */
 public final class BooleanType extends UnitType<Boolean> {
 
+    static final BooleanType INSTANCE = new BooleanType();
+
     private static final byte[] BOOLEAN_FALSE = new byte[UNIT_LENGTH_BYTES];
     private static final byte[] BOOLEAN_TRUE = new byte[UNIT_LENGTH_BYTES];
 
     static {
-        BOOLEAN_TRUE[BOOLEAN_TRUE.length-1] = 1;
+        BOOLEAN_TRUE[BOOLEAN_TRUE.length - 1] = 1;
+        UnitType.initInstances(); // will prevent creation of new UnitTypes once finished (except BigDecimalType)
     }
 
-    BooleanType() {
+    private BooleanType() {
         super("bool", Boolean.class, 1, true);
     }
 
@@ -43,18 +45,19 @@ public final class BooleanType extends UnitType<Boolean> {
     }
 
     @Override
-    int byteLengthPacked(Object value) {
+    int byteLengthPacked(Boolean value) {
         return Byte.BYTES;
     }
 
     @Override
-    public int validate(Boolean value) {
+    int validateInternal(Boolean value) {
+        // all Booleans are a valid bool
         return UNIT_LENGTH_BYTES;
     }
 
     @Override
-    void encodeTail(Object value, ByteBuffer dest) {
-        encodeBoolean((boolean) value, dest);
+    void encodeTail(Boolean value, ByteBuffer dest) {
+        encodeBoolean(value, dest);
     }
 
     @Override
@@ -63,15 +66,16 @@ public final class BooleanType extends UnitType<Boolean> {
     }
 
     @Override
-    Boolean decode(ByteBuffer bb, byte[] unitBuffer) {
-        bb.get(unitBuffer);
-        BigInteger bi = new BigInteger(unitBuffer);
-        validateBigInt(bi);
-        return decodeBoolean(bi.byteValue());
+    public Boolean decode(ByteBuffer bb, byte[] unitBuffer) {
+        final long abc = bb.getLong() | bb.getLong() | bb.getLong();
+        final long abcd = bb.getLong() | abc;
+        if (abcd == 0L) return false;
+        if (abcd == 1L && abc == 0L) return true;
+        throw err(bb);
     }
 
     static void encodeBooleanPacked(boolean value, ByteBuffer dest) {
-        dest.put(value ? Encoding.ONE_BYTE : Encoding.ZERO_BYTE);
+        dest.put(value ? ONE_BYTE : ZERO_BYTE);
     }
 
     static void encodeBoolean(boolean val, ByteBuffer dest) {
@@ -79,16 +83,10 @@ public final class BooleanType extends UnitType<Boolean> {
     }
 
     static Boolean decodeBoolean(byte b) {
-        return switch (b) {
-            case Encoding.ZERO_BYTE -> Boolean.FALSE;
-            case Encoding.ONE_BYTE -> Boolean.TRUE;
-            default -> throw new IllegalArgumentException("illegal boolean value: " + b);
-        };
-    }
-
-    @Override
-    public Boolean parseArgument(String s) {
-        return Boolean.parseBoolean(s);
-//        validate(bool);
+        switch (b) {
+        case ZERO_BYTE: return Boolean.FALSE;
+        case ONE_BYTE: return Boolean.TRUE;
+        default: throw new IllegalArgumentException("illegal boolean value: " + b);
+        }
     }
 }

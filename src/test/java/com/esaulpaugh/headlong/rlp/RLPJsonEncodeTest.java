@@ -16,14 +16,17 @@
 package com.esaulpaugh.headlong.rlp;
 
 import com.esaulpaugh.headlong.TestUtils;
-import com.esaulpaugh.headlong.abi.util.JsonUtils;
+import com.esaulpaugh.headlong.util.FastHex;
 import com.esaulpaugh.headlong.util.Integers;
 import com.esaulpaugh.headlong.util.Strings;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.internal.Streams;
+import com.google.gson.stream.JsonReader;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.io.StringReader;
 import java.util.Map;
 import java.util.Set;
 
@@ -47,7 +50,7 @@ public class RLPJsonEncodeTest {
     }
 
     static Set<Map.Entry<String, JsonElement>> parseEntrySet(String json) {
-        return JsonUtils.parse(json)
+        return Streams.parse(new JsonReader(new StringReader(json)))
                 .getAsJsonObject()
                 .entrySet();
     }
@@ -55,12 +58,12 @@ public class RLPJsonEncodeTest {
     static byte[] parseIn(JsonObject value) {
         JsonElement in = value.get("in");
         if(in.isJsonArray()) {
-            return RLPEncoder.encodeAsList(parseArrayToBytesHierarchy(in.getAsJsonArray()));
+            return RLPEncoder.list(parseArrayToBytesHierarchy(in.getAsJsonArray()));
         } else if(in.isJsonPrimitive()) {
             try {
-                return RLPEncoder.encodeString(Integers.toBytes(parseLong(in)));
+                return RLPEncoder.string(Integers.toBytes(parseLong(in)));
             } catch (NumberFormatException nfe) {
-                return RLPEncoder.encodeString(
+                return RLPEncoder.string(
                         in.getAsString().startsWith("#")
                                 ? parseBigIntegerStringPoundSign(in).toByteArray()
                                 : Strings.decode(parseString(in), Strings.UTF_8)
@@ -79,6 +82,8 @@ public class RLPJsonEncodeTest {
         JsonElement out = value.get("out");
         System.out.println(out);
         String outString = out.getAsString();
-        return Strings.decode(outString.substring(outString.indexOf("0x") + "0x".length()));
+        return outString.startsWith("0x")
+                ? FastHex.decode(outString, 2, outString.length() - 2)
+                : FastHex.decode(outString);
     }
 }

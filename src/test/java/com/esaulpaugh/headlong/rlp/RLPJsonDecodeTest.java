@@ -16,7 +16,6 @@
 package com.esaulpaugh.headlong.rlp;
 
 import com.esaulpaugh.headlong.TestUtils;
-import com.esaulpaugh.headlong.rlp.util.Notation;
 import com.esaulpaugh.headlong.util.Strings;
 import com.google.gson.JsonElement;
 import org.junit.jupiter.api.Test;
@@ -44,11 +43,10 @@ public class RLPJsonDecodeTest {
         String testCasesJson = TestUtils.readFileResourceAsString("tests/ethereum/RLPTests/invalidRLPTest.json");
 
         for (Map.Entry<String, JsonElement> e : RLPJsonEncodeTest.parseEntrySet(testCasesJson)) {
-
-            byte[] invalidRLP = RLPJsonEncodeTest.parseOut(e.getValue().getAsJsonObject());
-
+            byte[] invalidRLP = null;
             Throwable throwable = null;
             try {
+                invalidRLP = RLPJsonEncodeTest.parseOut(e.getValue().getAsJsonObject());
                 decodeRecursively(invalidRLP);
             } catch (Throwable t) {
                 throwable = t;
@@ -66,16 +64,16 @@ public class RLPJsonDecodeTest {
             item.asString(Strings.HEX);
         } else {
             ArrayList<Object> collector = new ArrayList<>();
-            elementsRecursive((RLPList) item, collector, RLPDecoder.RLP_STRICT);
+            elementsRecursive(item.asRLPList(), collector, RLPDecoder.RLP_STRICT);
         }
     }
 
     private static void elementsRecursive(RLPList list, Collection<Object> results, RLPDecoder decoder) {
         List<RLPItem> actualList = list.elements(decoder);
         for (RLPItem element : actualList) {
-            if(element instanceof RLPList listElement) {
+            if(element instanceof RLPList) {
                 List<Object> subList = new ArrayList<>();
-                elementsRecursive(listElement, subList, decoder);
+                elementsRecursive(element.asRLPList(), subList, decoder);
                 results.add(subList);
             } else {
                 results.add(element);

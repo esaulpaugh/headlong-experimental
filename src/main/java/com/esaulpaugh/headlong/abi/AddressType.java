@@ -17,13 +17,21 @@ package com.esaulpaugh.headlong.abi;
 
 import java.nio.ByteBuffer;
 
+import static com.esaulpaugh.headlong.abi.Address.ADDRESS_BIT_LEN;
+
 /** The {@link ABIType} for {@link Address}. Corresponds to the "address" type. */
 public final class AddressType extends UnitType<Address> {
 
-    private static final BigIntegerType ADDRESS_INNER = new BigIntegerType("ADDRESS_INNER", TypeFactory.ADDRESS_BIT_LEN, true);
+    static final AddressType INSTANCE = new AddressType();
 
-    AddressType() {
-        super("address", Address.class, TypeFactory.ADDRESS_BIT_LEN, true);
+    private static final BigIntegerType ADDRESS_INNER = new BigIntegerType("ADDRESS_INNER", ADDRESS_BIT_LEN, true);
+
+    static {
+        UnitType.initInstances();
+    }
+
+    private AddressType() {
+        super("address", Address.class, ADDRESS_BIT_LEN, true);
     }
 
     @Override
@@ -37,13 +45,13 @@ public final class AddressType extends UnitType<Address> {
     }
 
     @Override
-    public int validate(Address value) {
-        return ADDRESS_INNER.validate(value.value());
+    int validateInternal(Address value) {
+        return ADDRESS_INNER.validateInternal(value.value());
     }
 
     @Override
-    void encodeTail(Object value, ByteBuffer dest) {
-        ADDRESS_INNER.encodeTail(((Address) value).value(), dest);
+    void encodeTail(Address value, ByteBuffer dest) {
+        ADDRESS_INNER.encodeTail(value.value(), dest);
     }
 
     @Override
@@ -54,12 +62,5 @@ public final class AddressType extends UnitType<Address> {
     @Override
     void encodePackedUnchecked(Address value, ByteBuffer dest) {
         ADDRESS_INNER.encodePackedUnchecked(value.value(), dest);
-    }
-
-    @Override
-    public Address parseArgument(String s) {
-        Address address = Address.wrap(s);
-        validate(address);
-        return address;
     }
 }

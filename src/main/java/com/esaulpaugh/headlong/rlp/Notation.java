@@ -13,10 +13,8 @@
    See the License for the specific language governing permissions and
    limitations under the License.
 */
-package com.esaulpaugh.headlong.rlp.util;
+package com.esaulpaugh.headlong.rlp;
 
-import com.esaulpaugh.headlong.rlp.DataType;
-import com.esaulpaugh.headlong.rlp.RLPEncoder;
 import com.esaulpaugh.headlong.util.FastHex;
 import com.esaulpaugh.headlong.util.Integers;
 import com.esaulpaugh.headlong.util.Strings;
@@ -33,12 +31,12 @@ public final class Notation {
 
     private static final String BEGIN_NOTATION = "(";
     private static final String END_NOTATION = "\n)";
-
-    private static final String BEGIN_LIST = "[";
-    private static final String END_LIST = "]";
-    private static final String BEGIN_STRING = "'";
-    private static final String END_STRING = "'";
+    private static final char BEGIN_LIST = '[';
+    private static final char END_LIST = ']';
+    private static final char BEGIN_STRING = '\'';
+    private static final char END_STRING = BEGIN_STRING;
     private static final String DELIMITER = ",";
+    private static final String SPACE = " ";
 
     private static final String[] LINE_PADDING_CACHE;
 
@@ -59,37 +57,26 @@ public final class Notation {
         return Notation.parse(value);
     }
 
-    public static Notation forEncoding(byte[] encoding) {
-        return forEncoding(encoding, 0, encoding.length);
-    }
-
-    public static Notation forEncoding(byte[] buffer, int index, int end) {
-        return new Notation(encodeToString(buffer, index, end));
+    public static Notation forEncoding(byte[] rlp) {
+        return new Notation(encodeToString(rlp));
     }
 
     public static String encodeToString(byte[] rlp) {
         return encodeToString(rlp, 0, rlp.length);
     }
 
-    public static String encodeToString(final byte[] buffer, final int index, int end) {
-        if(index >= 0) {
-            end = Math.min(buffer.length, end);
-            if (index <= end) {
-                StringBuilder sb = new StringBuilder(BEGIN_NOTATION);
-                buildLongList(sb, buffer, index, end, 0);
-                return sb.append(END_NOTATION).toString();
-            }
-            throw new IllegalArgumentException("index > end: " + index + " > " + end);
-        }
-        throw new ArrayIndexOutOfBoundsException(index);
+    static String encodeToString(final byte[] buffer, final int index, int end) {
+        StringBuilder sb = new StringBuilder(BEGIN_NOTATION);
+        buildLongList(sb, buffer, index, end, 0);
+        return sb.append(END_NOTATION).toString();
     }
 
     public static Notation forObjects(Object... objects) {
-        return forEncoding(RLPEncoder.encodeSequentially(objects));
+        return forEncoding(RLPEncoder.sequence(objects));
     }
 
     public static Notation forObjects(Iterable<Object> objects) {
-        return forEncoding(RLPEncoder.encodeSequentially(objects));
+        return forEncoding(RLPEncoder.sequence(objects));
     }
 
     private static IllegalArgumentException exceedsContainer(int index, long end, int containerEnd) {
@@ -125,46 +112,47 @@ public final class Notation {
 
     private static int buildString(StringBuilder sb, byte[] data, int from, int to, boolean addSpace) {
         final int len = to - from;
-        if(!LENIENT && len == 1 && DataType.isSingleByte(data[from])) { // same as (data[from] & 0xFF) < 0x80
+        if (!LENIENT && len == 1 && DataType.isSingleByte(data[from])) { // same as (data[from] & 0xFF) < 0x80
             throw new IllegalArgumentException("invalid rlp for single byte @ " + (from - 1)); // item prefix is 1 byte
         }
         sb.append(BEGIN_STRING).append(Strings.encode(data, from, len, Strings.HEX))
-                .append(addSpace ? END_STRING + DELIMITER + ' ' : END_STRING + DELIMITER);
+                .append(addSpace ? END_STRING + DELIMITER + SPACE : END_STRING + DELIMITER);
         return to;
     }
 
     private static int buildLongList(StringBuilder sb, byte[] data, int dataIndex, int end, int depth) {
-        if(depth != 0) {
+        if (depth != 0) {
             sb.append(BEGIN_LIST);
         }
         buildListContent(sb, dataIndex, end, data, false, depth + 1);
-        if(depth != 0) {
+        if (depth != 0) {
             sb.append(getLinePadding(depth)).append(END_LIST + DELIMITER);
         }
         return end;
     }
 
     private static int buildShortList(StringBuilder sb, byte[] data, int dataIndex, int end, int depth, boolean addSpace) {
-        sb.append(BEGIN_LIST + ' ');
+        sb.append(BEGIN_LIST + SPACE);
         buildListContent(sb, dataIndex, end, data, true, depth + 1);
         sb.append(addSpace
-                ? ' ' + END_LIST + DELIMITER + ' '
-                : ' ' + END_LIST + DELIMITER);
+                ? SPACE + END_LIST + DELIMITER + SPACE
+                : SPACE + END_LIST + DELIMITER);
         return end;
     }
 
     private static void buildListContent(StringBuilder sb, final int dataIndex, final int end, byte[] data, boolean shortList, final int elementDepth) {
         final String elementPrefix = shortList ? null : getLinePadding(elementDepth);
-        for (int i = dataIndex; i < end; ) {
-            if(!shortList) {
+        int i = dataIndex;
+        while (i < end) {
+            if (!shortList) {
                 sb.append(elementPrefix);
             }
             final byte lead = data[i];
             final DataType type = DataType.type(lead);
-            if(type == DataType.SINGLE_BYTE) {
+            if (type == DataType.SINGLE_BYTE) {
                 i = buildString(sb, data, i, i + 1, shortList);
             } else {
-                if(type.isLong && shortList) {
+                if (type.isLong && shortList) {
                     throw new IllegalArgumentException("long element found in short list");
                 }
                 final int diff = lead - type.offset;
@@ -180,7 +168,7 @@ public final class Notation {
             }
         }
         if (/* hasElement */ dataIndex != end) {
-            sb.replace(sb.length() - (shortList ? DELIMITER + ' ' : DELIMITER).length(), sb.length(), ""); // trim
+            sb.setLength(sb.length() - (shortList ? DELIMITER + SPACE : DELIMITER).length()); // trim
         }
     }
 
@@ -203,7 +191,7 @@ public final class Notation {
 
     @Override
     public boolean equals(Object o) {
-        return o instanceof Notation that && this.value.equals(that.value);
+        return o instanceof Notation && (((Notation) o).value).equals(this.value);
     }
 
     @Override
@@ -211,7 +199,6 @@ public final class Notation {
         return value;
     }
 // ---------------------------------------------------------------------------------------------------------------------
-
     /**
      * Returns the object hierarchy represented by the notation.
      *
@@ -219,53 +206,35 @@ public final class Notation {
      * @return the hierarchy of objects
      */
     public static List<Object> parse(String notation) {
-        List<Object> topLevelObjects = new ArrayList<>(); // a sequence (as in encodeSequentially)
-        parse(notation, 0, -1, notation.length(), topLevelObjects);
+        List<Object> topLevelObjects = new ArrayList<>(); // a sequence (as in RLPEncoder.sequence)
+        parse(notation, 0, topLevelObjects, 0);
         return topLevelObjects;
     }
 
-    private static int parse(String notation, int i, int nextArrayEnd, final int end, List<Object> parent) {
+    private static final int MAX_DEPTH = 768;
 
-        while (i < end) {
-            int nextObjectIndex = findNextObject(notation, i);
-            if(nextObjectIndex < 0) {
-                return Integer.MAX_VALUE;
-            }
-
-            if(i > nextArrayEnd) { // only update nextArrayEnd when i has passed it
-                nextArrayEnd = notation.indexOf(Notation.END_LIST, i);
-                if(nextArrayEnd < 0) {
-                    nextArrayEnd = Integer.MAX_VALUE;
+    private static int parse(final String notation, int i, final List<Object> parent, final int depth) {
+        do {
+            switch (notation.charAt(i++)) {
+            case BEGIN_STRING:
+                final int datumEnd = notation.indexOf(END_STRING, i);
+                if (datumEnd < 0) {
+                    throw new IllegalArgumentException("unterminated string @ " + i);
                 }
-            }
-
-            if(nextArrayEnd < nextObjectIndex) {
-                return nextArrayEnd + END_LIST.length();
-            }
-
-            if(notation.charAt(nextObjectIndex) == '\'') {
-                int datumStart = nextObjectIndex + BEGIN_STRING.length();
-                int datumEnd = notation.indexOf(END_STRING, datumStart);
-                if(datumEnd < 0) {
-                    throw new IllegalArgumentException("unterminated string @ " + datumStart);
+                parent.add(FastHex.decode(notation, i, datumEnd - i));
+                i = datumEnd + 1;
+                continue;
+            case BEGIN_LIST:
+                if (depth >= MAX_DEPTH) {
+                    throw new IllegalArgumentException("exceeds max depth of " + MAX_DEPTH);
                 }
-                parent.add(FastHex.decode(notation, datumStart, datumEnd - datumStart));
-                i = datumEnd + END_STRING.length();
-            } else {
                 List<Object> childList = new ArrayList<>();
-                i = parse(notation, nextObjectIndex + BEGIN_LIST.length(), nextArrayEnd, end, childList);
+                i = parse(notation, i, childList, depth + 1);
                 parent.add(childList);
+                continue;
+            case END_LIST: return i;
             }
-        }
+        } while (i < notation.length());
         return Integer.MAX_VALUE;
-    }
-
-    private static int findNextObject(String notation, int i) {
-        final int len = notation.length();
-        for( ; i < len; i++) {
-            char c = notation.charAt(i);
-            if(c == '\'' || c == '[') return i; // char values hardcoded
-        }
-        return -1;
     }
 }

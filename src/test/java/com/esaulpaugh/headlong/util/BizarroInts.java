@@ -13,7 +13,7 @@
    See the License for the specific language governing permissions and
    limitations under the License.
 */
-package com.esaulpaugh.headlong.abi.util;
+package com.esaulpaugh.headlong.util;
 
 import com.esaulpaugh.headlong.util.Integers;
 import com.esaulpaugh.headlong.util.Strings;
@@ -26,12 +26,12 @@ import java.nio.ByteBuffer;
  * <p>Negative integers are stored in a minimal big-endian two's complement representation. Non-negative integers are
  * stored full-length. Negative one is represented by the empty byte array. Numbers are sign-extended on decode.
  *
- * -256L ≡ 0x00
- *  -16L ≡ 0xf0
- *   -1L ≡ 0x
- *    0L ≡ 0x0000000000000000
- *    1L ≡ 0x0000000000000001
- *   16L ≡ 0x0000000000000010
+ * -256L === 0x00
+ *  -16L === 0xf0
+ *   -1L === 0x
+ *    0L === 0x0000000000000000
+ *    1L === 0x0000000000000001
+ *   16L === 0x0000000000000010
  */
 public final class BizarroInts {
 
@@ -179,49 +179,49 @@ public final class BizarroInts {
     }
     // *******************
     public static byte getByte(byte[] buffer, int offset, int len) {
-        return switch (len) {
-            case 0 -> (byte) 0xFF;
-            case 1 -> buffer[offset];
-            default -> throw outOfRangeException(len);
-        };
+        switch (len) {
+        case 0: return (byte) 0xFF;
+        case 1: return buffer[offset];
+        default: throw outOfRangeException(len);
+        }
     }
 
     public static short getShort(byte[] buffer, int offset, int len) {
         // do sign extension for negative shorts, i.e. len < 2
-        return switch (len) {
-            case 0 -> (short) 0xFFFF;
-            case 1 -> (short) (0xFFFFFF00 | buffer[offset]);
-            case 2 -> (short) _getShortInt(buffer, offset);
-            default -> throw outOfRangeException(len);
-        };
+        switch (len) {
+        case 0: return (short) 0xFFFF;
+        case 1: return (short) (0xFFFFFF00 | buffer[offset]);
+        case 2: return (short) _getShortInt(buffer, offset);
+        default: throw outOfRangeException(len);
+        }
     }
 
     public static int getInt(byte[] buffer, int offset, int len) {
         // do sign extension for negative ints, i.e. len < 4
-        return switch (len) {
-            case 0 -> 0xFFFFFFFF;
-            case 1 -> 0xFFFFFF00 | buffer[offset];
-            case 2 -> 0xFFFF0000 | _getShortInt(buffer, offset);
-            case 3 -> 0xFF000000 | _getInt(buffer, offset, 3);
-            case 4 -> _getInt(buffer, offset, 4);
-            default -> throw outOfRangeException(len);
-        };
+        switch (len) {
+        case 0: return 0xFFFFFFFF;
+        case 1: return 0xFFFFFF00 | buffer[offset];
+        case 2: return 0xFFFF0000 | _getShortInt(buffer, offset);
+        case 3: return 0xFF000000 | _getInt(buffer, offset, 3);
+        case 4: return _getInt(buffer, offset, 4);
+        default: throw outOfRangeException(len);
+        }
     }
 
     public static long getLong(final byte[] buffer, final int offset, final int len) {
         // do sign extension for negative longs, i.e. len < 8
-        return switch (len) {
-            case 0 -> 0xFFFFFFFF_FFFFFFFFL;
-            case 1 -> 0xFFFFFFFF_FFFFFF00L | buffer[offset];
-            case 2 -> 0xFFFFFFFF_FFFF0000L | _getShortInt(buffer, offset);
-            case 3 -> 0xFFFFFFFF_FF000000L | _getInt(buffer, offset, 3);
-            case 4 -> 0xFFFFFFFF_00000000L | _getInt(buffer, offset, 4);
-            case 5 -> 0xFFFFFF00_00000000L | _getLong(buffer, offset, 5);
-            case 6 -> 0xFFFF0000_00000000L | _getLong(buffer, offset, 6);
-            case 7 -> 0xFF000000_00000000L | _getLong(buffer, offset, 7);
-            case 8 -> _getLong(buffer, offset, 8);
-            default -> throw outOfRangeException(len);
-        };
+        switch (len) {
+        case 0: return 0xFFFFFFFF_FFFFFFFFL;
+        case 1: return 0xFFFFFFFF_FFFFFF00L | buffer[offset];
+        case 2: return 0xFFFFFFFF_FFFF0000L | _getShortInt(buffer, offset);
+        case 3: return 0xFFFFFFFF_FF000000L | _getInt(buffer, offset, 3);
+        case 4: return 0xFFFFFFFF_00000000L | _getInt(buffer, offset, 4);
+        case 5: return 0xFFFFFF00_00000000L | _getLong(buffer, offset, 5);
+        case 6: return 0xFFFF0000_00000000L | _getLong(buffer, offset, 6);
+        case 7: return 0xFF000000_00000000L | _getLong(buffer, offset, 7);
+        case 8: return _getLong(buffer, offset, 8);
+        default: throw outOfRangeException(len);
+        }
     }
 
     private static IllegalArgumentException outOfRangeException(int len) {

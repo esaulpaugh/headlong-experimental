@@ -1,87 +1,98 @@
-import java.time.ZoneId
-import java.time.ZonedDateTime
-import java.time.format.DateTimeFormatter
-
-plugins {
-    id("java-library")
-    id("maven-publish")
-    id("me.champeau.jmh").version("0.6.6")
-}
-
-group = "com.esaulpaugh"
-version = "5.6.2-SNAPSHOT"
-
-project.ext.set("archivesBaseName", "headlong")
-
-tasks.withType<JavaCompile>({
-    options.compilerArgs.addAll(arrayOf("--release", "17"))
-    options.encoding = "UTF-8"
-})
-
-tasks.withType<Test>({
-    maxParallelForks = Runtime.getRuntime().availableProcessors()
-    useJUnitPlatform()
-})
-
-tasks {
-    val sourcesJar by creating(Jar::class, {
-        dependsOn(JavaPlugin.CLASSES_TASK_NAME)
-        archiveClassifier.set("sources")
-        from(sourceSets["main"].allSource)
-    })
-
-    val javadocJar by creating(Jar::class, {
-        dependsOn(JavaPlugin.JAVADOC_TASK_NAME)
-        archiveClassifier.set("javadoc")
-        from(JavaPlugin.JAVADOC_TASK_NAME)
-        finalizedBy("sourcesJar")
-    })
-
-    artifacts({
-        add("archives", sourcesJar)
-        add("archives", javadocJar)
-    })
-}
-
-val buildDate : String = ZonedDateTime.now(ZoneId.of("UTC")).format(DateTimeFormatter.ofPattern("MMMM d yyyy z"))
-
-tasks.withType<Jar>({
-    manifest({
-        attributes(
-                Pair<String, Any?>("Implementation-Title", project.name),
-                Pair<String, Any?>("Implementation-Version", project.version),
-                Pair<String, Any?>("Automatic-Module-Name", project.name),
-                Pair<String, Any?>("Build-Date", buildDate)
-        )
-    })
-})
-
-publishing({
-    publications {
-        create<MavenPublication>("maven", {
-            groupId = "com.esaulpaugh"
-            artifactId = "headlong"
-            version = "5.6.2-SNAPSHOT"
-            from(components["java"])
-            artifact("sourcesJar")
-            artifact("javadocJar")
-        })
-    }
-})
-
-repositories({
-    mavenCentral()
-})
-
-val junitVersion = "5.8.2"
-val bcVersion = "1.70"
-
-dependencies({
-    implementation("com.google.code.gson:gson:2.8.9")
-
-    testImplementation("org.junit.jupiter:junit-jupiter-api:$junitVersion")
-    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:$junitVersion")
-    testImplementation("org.bouncycastle:bcprov-jdk15on:$bcVersion")
-
-    jmhImplementation("commons-codec:commons-codec:1.15")
-})
+//import java.time.Instant
+//import java.time.format.DateTimeFormatter
+//import java.util.Locale
+//import java.time.ZoneOffset
+//
+//plugins {
+//    id("java-library")
+//    id("maven-publish")
+//    id("me.champeau.jmh").version("0.7.2") // requires gradle 7.0+
+//}
+//
+//group = "com.esaulpaugh"
+//version = "12.3.4-SNAPSHOT"
+//
+//java {
+//    sourceCompatibility = JavaVersion.VERSION_1_8
+//    targetCompatibility = JavaVersion.VERSION_1_8
+//}
+//
+//tasks.withType<JavaCompile> {
+//    if (JavaVersion.current() >= JavaVersion.VERSION_1_10) {
+//        println("setting release 8")
+//        options.release.set(8)
+//    }
+//    options.encoding = "US-ASCII"
+//}
+//
+//tasks.withType<Test> {
+//    maxParallelForks = Runtime.getRuntime().availableProcessors()
+//    useJUnitPlatform()
+//}
+//
+//val sourcesJar by tasks.registering(Jar::class) {
+//    dependsOn(JavaPlugin.CLASSES_TASK_NAME)
+//    archiveClassifier.set("sources")
+//    from(sourceSets["main"].allSource)
+//}
+//
+//val javadocJar by tasks.registering(Jar::class) {
+//    dependsOn(JavaPlugin.JAVADOC_TASK_NAME)
+//    archiveClassifier.set("javadoc")
+//    from(sourceSets["main"].allSource)
+//}
+//
+//artifacts {
+//    add("archives", sourcesJar)
+//    add("archives", javadocJar)
+//}
+//
+//val dateFormatter : DateTimeFormatter = DateTimeFormatter.ofPattern("MMMM d yyyy", Locale.ENGLISH).withZone(ZoneOffset.UTC)
+//
+//tasks.withType<Jar> {
+//    manifest {
+//        attributes(
+//            "Implementation-Title" to project.name,
+//            "Implementation-Version" to project.version,
+//            "Automatic-Module-Name" to "com.esaulpaugh.headlong",
+//            "Created-By" to "Gradle KTS",
+//            "Build-Date" to dateFormatter.format(Instant.now())
+//        )
+//    }
+//}
+//
+//publishing {
+//    publications {
+//        register("mavenJava", MavenPublication::class) {
+//            from(components["java"])
+//            artifact(sourcesJar.get())
+//            artifact(javadocJar.get())
+//        }
+//    }
+//}
+//
+//repositories {
+//    mavenCentral()
+//}
+//
+//val junitVersion = "5.11.3"
+//val bcVersion = "1.79"
+//
+//dependencies {
+//    implementation("com.google.code.gson:gson:2.10.1")
+//
+//    testImplementation("org.junit.jupiter:junit-jupiter-api:$junitVersion")
+//    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:$junitVersion")
+//    testImplementation("org.bouncycastle:bcprov-jdk14:$bcVersion")
+//
+//    jmhImplementation("commons-codec:commons-codec:1.17.0")
+//}
+//
+//jmh {
+//    jmhVersion.set("1.37")
+//}
+//
+//tasks.withType<AbstractArchiveTask>().configureEach {
+//    isPreserveFileTimestamps = false
+//    isReproducibleFileOrder = true
+//}

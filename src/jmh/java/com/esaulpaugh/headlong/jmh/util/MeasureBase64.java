@@ -16,8 +16,16 @@
 package com.esaulpaugh.headlong.jmh.util;
 
 import com.esaulpaugh.headlong.util.FastBase64;
-import com.esaulpaugh.headlong.util.Strings;
-import org.openjdk.jmh.annotations.*;
+import org.openjdk.jmh.annotations.Benchmark;
+import org.openjdk.jmh.annotations.BenchmarkMode;
+import org.openjdk.jmh.annotations.Fork;
+import org.openjdk.jmh.annotations.Level;
+import org.openjdk.jmh.annotations.Measurement;
+import org.openjdk.jmh.annotations.Mode;
+import org.openjdk.jmh.annotations.Scope;
+import org.openjdk.jmh.annotations.Setup;
+import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
 import java.util.Random;
@@ -55,13 +63,15 @@ public class MeasureBase64 {
         blackhole.consume(org.apache.commons.codec.binary.Base64.encodeBase64(LARGE));
     }
 
+    private static final int URL_SAFE_FLAGS = FastBase64.URL_SAFE_CHARS | FastBase64.NO_LINE_SEP | FastBase64.NO_PADDING;
+
     @Benchmark
     @Fork(value = 1, warmups = 1)
     @BenchmarkMode(Mode.Throughput)
     @Warmup(iterations = 1)
     @Measurement(iterations = THREE)
     public void largeBase64Fast(Blackhole blackhole) {
-        blackhole.consume(FastBase64.encodeToString(LARGE, 0, LARGE.length, Strings.URL_SAFE_FLAGS));
+        blackhole.consume(FastBase64.encodeToString(LARGE, 0, LARGE.length, URL_SAFE_FLAGS));
     }
 
     @Benchmark
@@ -97,7 +107,7 @@ public class MeasureBase64 {
     @Warmup(iterations = 1)
     @Measurement(iterations = THREE)
     public void smallBase64Fast(Blackhole blackhole) {
-        blackhole.consume(FastBase64.encodeToString(SMALL, 0, SMALL.length, Strings.URL_SAFE_FLAGS));
+        blackhole.consume(FastBase64.encodeToString(SMALL, 0, SMALL.length, URL_SAFE_FLAGS));
     }
 
     @Benchmark

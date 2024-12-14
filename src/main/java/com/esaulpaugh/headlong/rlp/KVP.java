@@ -18,9 +18,12 @@ package com.esaulpaugh.headlong.rlp;
 import com.esaulpaugh.headlong.util.Strings;
 
 import java.nio.ByteBuffer;
-import java.util.Arrays;
+import java.util.Iterator;
 
 import static com.esaulpaugh.headlong.rlp.RLPDecoder.RLP_STRICT;
+import static com.esaulpaugh.headlong.util.Strings.ASCII;
+import static com.esaulpaugh.headlong.util.Strings.HEX;
+import static com.esaulpaugh.headlong.util.Strings.UTF_8;
 
 /**
  * A key-value pair as per EIP-778.
@@ -39,36 +42,34 @@ public final class KVP implements Comparable<KVP> {
     public static final String IP6 = "ip6";
     public static final String TCP6 = "tcp6";
     public static final String UDP6 = "udp6";
+    public static final String CLIENT = "client";
 
-    private final byte[] k;
-    private final byte[] v;
-    private final int keyDataIdx;
-    final int length;
+    final byte[] rlp;
+    final RLPString key;
 
     public KVP(String keyUtf8, String val, int valEncoding) {
         this(keyUtf8, Strings.decode(val, valEncoding));
     }
 
     public KVP(String keyUtf8, byte[] rawVal) {
-        this(Strings.decode(keyUtf8, Strings.UTF_8), rawVal);
+        this(Strings.decode(keyUtf8, UTF_8), rawVal);
     }
 
     public KVP(byte[] key, byte[] value) {
-        this.k = RLPEncoder.encodeString(key);
-        this.v = RLPEncoder.encodeString(value);
-        this.keyDataIdx = key().dataIndex;
-        this.length = k.length + v.length;
+        this.rlp = RLPEncoder.sequence(key, value);
+        this.key = RLP_STRICT.wrapString(rlp);
     }
 
-    public KVP(RLPItem key, RLPItem value) {
-        this(key.encoding(), value.encoding(), key.dataIndex);
+    public KVP(String keyUtf8, RLPItem value) {
+        this(RLP_STRICT.wrapString(RLPEncoder.string(Strings.decode(keyUtf8, UTF_8))), value);
     }
 
-    private KVP(byte[] k, byte[] v, int i) {
-        this.k = k;
-        this.v = v;
-        this.keyDataIdx = i;
-        this.length = k.length + v.length;
+    public KVP(RLPString key, RLPItem value) {
+        final int keyLen = key.encodingLength();
+        this.rlp = new byte[keyLen + value.encodingLength()];
+        key.copy(rlp, 0);
+        value.copy(rlp, keyLen);
+        this.key = RLP_STRICT.wrapString(rlp);
     }
 
     public KVP withValue(String val, int valEncoding) {
@@ -76,64 +77,61 @@ public final class KVP implements Comparable<KVP> {
     }
 
     public KVP withValue(byte[] value) {
-        return new KVP(this.k, RLPEncoder.encodeString(value), this.keyDataIdx);
+        return new KVP(key, RLP_STRICT.wrapString(RLPEncoder.string(value)));
     }
 
     public RLPString key() {
-        return RLP_STRICT.wrapString(k);
+        return key;
     }
 
-    public RLPString value() {
-        return RLP_STRICT.wrapString(v);
+    public RLPItem value() {
+        return RLP_STRICT.wrap(rlp, key.endIndex);
     }
 
     void export(ByteBuffer bb) {
-        bb.put(k).put(v);
+        bb.put(rlp);
     }
 
     @Override
     public int hashCode() {
-        return Arrays.hashCode(k);
+        return key.hashCode();
     }
 
     @Override
     public boolean equals(Object o) {
-        return o instanceof KVP that && Arrays.equals(this.k, that.k);
+        return o instanceof KVP && key.equals(((KVP) o).key);
     }
 
     @Override
     public String toString() {
-        return key().asString(Strings.UTF_8) + " --> " + value().asString(Strings.HEX);
+        final StringBuilder sb = new StringBuilder(key.asString(UTF_8)).append(" --> ");
+        final RLPItem value = value();
+        if (value.isString()) {
+            return sb.append(value.asString(HEX)).toString();
+        }
+        sb.append('[');
+        final Iterator<RLPItem> iter = value.asRLPList().iterator();
+        if (iter.hasNext()) {
+            for ( ; true; sb.append(", ")) {
+                sb.append('"').append(iter.next().asString(ASCII)).append('"');
+                if (!iter.hasNext()) {
+                    break;
+                }
+            }
+        }
+        return sb.append(']').toString();
     }
 
     @Override
     public int compareTo(KVP other) {
-        int result = compare(this, other);
+        int result = this.key.compareTo(other.key);
         if (result == 0) {
-            throw duplicateKeyErr();
+            throw duplicateKeyErr(key);
         }
         return result;
     }
 
-    private static int compare(KVP pa, KVP pb) {
-        byte[] a = pa.k;
-        byte[] b = pb.k;
-        int aOff = pa.keyDataIdx;
-        int bOff = pb.keyDataIdx;
-        final int aLen = a.length - aOff;
-        final int bLen = b.length - bOff;
-        final int end = aOff + Math.min(aLen, bLen);
-        while(aOff < end) {
-            int av = a[aOff++];
-            int bv = b[bOff++];
-            if (av != bv) {
-                return av - bv;
-            }
-        }
-        return aLen - bLen;
-    }
-
-    IllegalArgumentException duplicateKeyErr() {
-        return new IllegalArgumentException("duplicate key: " + key().asString(Strings.UTF_8));
+    static IllegalArgumentException duplicateKeyErr(RLPString key) {
+        return new IllegalArgumentException("duplicate key: " + key.asString(UTF_8));
     }
 }

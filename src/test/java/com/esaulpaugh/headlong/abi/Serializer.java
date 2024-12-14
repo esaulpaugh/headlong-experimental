@@ -27,13 +27,14 @@ import java.math.BigInteger;
 
 public class Serializer {
 
-    public static JsonPrimitive serializeTypes(TupleType tupleType, Gson gson) {
-        JsonArray array = new JsonArray();
+    private Serializer() {}
 
+    public static JsonPrimitive serializeTypes(TupleType<?> tupleType, Gson gson) {
+        JsonArray typesArray = new JsonArray();
         for(ABIType<?> type : tupleType.elementTypes) {
-            array.add(new JsonPrimitive(type.canonicalType.replace("(", "tuple(")));
+            typesArray.add(new JsonPrimitive(type.canonicalType.replace("(", "tuple(")));
         }
-        return new JsonPrimitive(gson.toJson(array));
+        return new JsonPrimitive(gson.toJson(typesArray));
     }
 
     public static JsonPrimitive serializeValues(Tuple tuple, Gson gson) {
@@ -55,60 +56,60 @@ public class Serializer {
             object.add("type", new JsonPrimitive("number"));
             object.add("value", new JsonPrimitive(val.toString()));
             return object;
-        } else if(val instanceof BigInteger integer) {
+        } else if(val instanceof BigInteger) {
             JsonObject object = new JsonObject();
             object.add("type", new JsonPrimitive("string"));
-            object.add("value", new JsonPrimitive("0x" + Strings.encode(integer.toByteArray())));
+            object.add("value", new JsonPrimitive("0x" + Strings.encode(((BigInteger) val).toByteArray())));
             return object;
-        } else if(val instanceof BigDecimal decimal) {
+        } else if(val instanceof BigDecimal) {
             JsonObject object = new JsonObject();
             object.add("type", new JsonPrimitive("number"));
-            object.add("value", new JsonPrimitive(decimal.unscaledValue().toString()));
+            object.add("value", new JsonPrimitive(((BigDecimal) val).unscaledValue().toString()));
             return object;
-        } else if(val instanceof byte[] bytes) {
+        } else if(val instanceof byte[]) {
             JsonObject object = new JsonObject();
             object.add("type", new JsonPrimitive("buffer"));
-            object.add("value", new JsonPrimitive("0x" + Strings.encode(bytes)));
+            object.add("value", new JsonPrimitive("0x" + Strings.encode((byte[]) val)));
             return object;
-        } else if(val instanceof String str) {
+        } else if(val instanceof String) {
             JsonObject object = new JsonObject();
             object.add("type", new JsonPrimitive("buffer"));
-            object.add("value", new JsonPrimitive(str));
+            object.add("value", new JsonPrimitive((String) val));
             return object;
         } else if(val instanceof Address) {
             JsonObject object = new JsonObject();
             object.add("type", new JsonPrimitive("string"));
             object.add("value", new JsonPrimitive(val.toString()));
             return object;
-        } else if(val instanceof boolean[] bools) {
+        } else if(val instanceof boolean[]) {
             JsonArray array = new JsonArray();
-            for(boolean e : bools) {
+            for(boolean e : (boolean[]) val) {
                 array.add(toJsonElement(e));
             }
             return array;
-        } else if(val instanceof int[] ints) {
+        } else if(val instanceof int[]) {
             JsonArray array = new JsonArray();
-            for(int e : ints) {
+            for(int e : (int[]) val) {
                 array.add(toJsonElement(e));
             }
             return array;
-        } else if(val instanceof long[] longs) {
+        } else if(val instanceof long[]) {
             JsonArray array = new JsonArray();
-            for(long e : longs) {
+            for(long e : (long[]) val) {
                 array.add(toJsonElement(e));
             }
             return array;
-        } else if(val instanceof Object[] arr) {
+        } else if(val instanceof Object[]) {
             JsonArray array = new JsonArray();
-            for(Object e : arr) {
+            for(Object e : (Object[]) val) {
                 array.add(toJsonElement(e));
             }
             return array;
-        } else if(val instanceof Tuple tuple) {
+        } else if(val instanceof Tuple) {
             JsonObject object = new JsonObject();
             object.add("type", new JsonPrimitive("tuple"));
             JsonArray array = new JsonArray();
-            for(Object e : tuple) {
+            for(Object e : (Tuple) val) {
                 array.add(toJsonElement(e));
             }
             object.add("value", array);

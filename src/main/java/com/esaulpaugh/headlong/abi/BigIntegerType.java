@@ -21,6 +21,18 @@ import java.nio.ByteBuffer;
 /** Represents an integer type such as uint64 or int256. */
 public final class BigIntegerType extends UnitType<BigInteger> {
 
+    static {
+        init();
+    }
+
+    @SuppressWarnings("ConstantConditions")
+    private static void init() {
+        if (AddressType.INSTANCE == null) {
+            UnitType.initInstances(); // will prevent creation of new UnitTypes once finished (except BigDecimalType)
+        }
+        // else AddressType is currently initializing. UnitType.initInstances() will be called shortly once ADDRESS_INNER is created
+    }
+
     BigIntegerType(String canonicalType, int bitLength, boolean unsigned) {
         super(canonicalType, BigInteger.class, bitLength, unsigned);
     }
@@ -36,29 +48,22 @@ public final class BigIntegerType extends UnitType<BigInteger> {
     }
 
     @Override
-    public int validate(BigInteger value) {
+    int validateInternal(BigInteger value) {
         return validateBigInt(value);
     }
 
     @Override
-    void encodeTail(Object value, ByteBuffer dest) {
-        Encoding.insertInt((BigInteger) value, UNIT_LENGTH_BYTES, dest);
+    void encodeTail(BigInteger value, ByteBuffer dest) {
+        insertInt(value, UNIT_LENGTH_BYTES, dest);
     }
 
     @Override
     void encodePackedUnchecked(BigInteger value, ByteBuffer dest) {
-        Encoding.insertInt(value, byteLengthPacked(null), dest);
+        insertInt(value, byteLengthPacked(null), dest);
     }
 
     @Override
     BigInteger decode(ByteBuffer bb, byte[] unitBuffer) {
         return decodeValid(bb, unitBuffer);
-    }
-
-    @Override
-    public BigInteger parseArgument(String s) {
-        BigInteger bigInt = new BigInteger(s);
-        validate(bigInt);
-        return bigInt;
     }
 }

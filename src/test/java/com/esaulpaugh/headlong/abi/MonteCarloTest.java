@@ -16,7 +16,6 @@
 package com.esaulpaugh.headlong.abi;
 
 import com.esaulpaugh.headlong.TestUtils;
-import com.esaulpaugh.headlong.abi.util.JsonUtils;
 import com.esaulpaugh.headlong.util.Strings;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -41,49 +40,48 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.SortedSet;
 import java.util.TreeSet;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.RecursiveAction;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import static com.esaulpaugh.headlong.TestUtils.requireNoTimeout;
-import static com.esaulpaugh.headlong.TestUtils.shutdownAwait;
 
 public class MonteCarloTest {
 
     @Disabled("high memory")
-    @Test // (88642710261245591L,4,4,4,4
-    public void testRepro() { // (245781902350714877L,5,5,5,4
-        Random instance = new Random(); // (1847095625529912080L,5,5,5,4
-        MessageDigest md = Function.newDefaultDigest(); // (-2049532359701068182L,4,4,4,4
-        MonteCarloTestCase testCase = new MonteCarloTestCase(3239653448104147572L,4,3,5,4, instance, md);
-        repro(testCase, true); // (3239653448104147572L,4,3,5,4)
+    @Test
+    public void testRepro() {
+        Random instance = new Random();
+        MessageDigest md = Function.newDefaultDigest();
+        MonteCarloTestCase testCase = new MonteCarloTestCase("(2233608126516027008L,5,5,5,5)", instance, md);
+        repro(testCase, true);
     }
 
     private static void repro(MonteCarloTestCase testCase, boolean run) {
-        System.out.println(testCase.rawSignature);
-        System.out.println(count(testCase.argsTuple));
+        System.out.println(testCase.rawSignature());
+        System.out.println(estimateBytes(testCase.argsTuple));
         if (run) {
             testCase.runAll(new Random());
         }
     }
 
-    private static int count(Object o) {
-        int x = 0;
-        if(o instanceof Object[] arr) {
-            for(Object e : arr) {
-                x += count(e);
+    private static int estimateBytes(Object o) {
+        int x = 4; // 32 bits for the reference to the object, usually compressed from 64
+        if(o instanceof Object[]) {
+            for(Object e : (Object[]) o) {
+                x += estimateBytes(e);
             }
-        } else if(o instanceof Iterable it) {
-            for(Object e : it) {
-                x += count(e);
+        } else if(o instanceof Iterable) {
+            for(Object e : (Iterable<?>) o) {
+                x += estimateBytes(e);
             }
         } else if(o instanceof Number) {
-            if(o instanceof BigInteger c) {
-                x += c.toByteArray().length;
-            } else if(o instanceof BigDecimal c) {
-                x += c.unscaledValue().toByteArray().length;
+            if(o instanceof BigInteger) {
+                x += ((BigInteger) o).toByteArray().length;
+            } else if(o instanceof BigDecimal) {
+                x += ((BigDecimal) o).unscaledValue().toByteArray().length;
             } else if(o instanceof Integer) {
                 x += Integer.BYTES;
             } else if(o instanceof Long) {
@@ -92,6 +90,9 @@ public class MonteCarloTest {
                 throw new Error("" + o.getClass());
             }
         } else {
+            if (o == null) {
+                return x;
+            }
             Class<?> c = o.getClass();
             if (c == Boolean.class) {
                 x += 1;
@@ -106,7 +107,9 @@ public class MonteCarloTest {
             } else if (c == String.class) {
                 x += Strings.decode((String) o, Strings.UTF_8).length;
             } else if (c == Address.class) {
-                x += TypeFactory.ADDRESS_BIT_LEN / Byte.SIZE;
+                Address a = (Address) o;
+                x += estimateBytes(a.value());
+                x += estimateBytes(a.getLabel());
             } else {
                 throw new Error("" + c);
             }
@@ -114,52 +117,49 @@ public class MonteCarloTest {
         return x;
     }
 
-    private static final int N = 64_000;
+    private static final long TARGET_ITERATIONS = 128_000L;
+    private static final int MAX_TUPLE_DEPTH = 4;
+    private static final int MAX_TUPLE_LEN = 4;
+    private static final int MAX_ARRAY_DEPTH = 3;
+    private static final int MAX_ARRAY_LEN = 3;
+    private static final long TIMEOUT_SECONDS = 600L;
 
     @Test
-    public void gambleGamble() throws InterruptedException, TimeoutException {
-
+    public void gambleGamble() throws InterruptedException, TimeoutException, ExecutionException {
+        final MonteCarloTestCase.Limits limits = new MonteCarloTestCase.Limits(MAX_TUPLE_DEPTH, MAX_TUPLE_LEN, MAX_ARRAY_DEPTH, MAX_ARRAY_LEN);
         final long masterSeed = TestUtils.getSeed(); // (long) (Math.sqrt(2.0) * Math.pow(10, 15));
 
-        System.out.println("MASTER SEED: " + masterSeed + "L");
-
-        final int numProcessors = Runtime.getRuntime().availableProcessors();
-        final GambleGambleRunnable[] runnables = new GambleGambleRunnable[numProcessors];
-        final int workPerProcessor = N / numProcessors;
-        final ExecutorService pool = Executors.newFixedThreadPool(numProcessors);
-        int i = 0;
-        while (i < runnables.length) {
-            pool.submit(runnables[i] = new GambleGambleRunnable(masterSeed + (i++), workPerProcessor));
-        }
-        boolean noTimeout = TestUtils.shutdownAwait(pool, 600L);
-
-        for (GambleGambleRunnable runnable : runnables) {
-            if(runnable.thrown != null) {
-                throw new AssertionError(runnable.thrown);
-            }
-        }
-
-        requireNoTimeout(noTimeout);
-        System.out.println((workPerProcessor * i) + " done");
+        final int parallelism = Runtime.getRuntime().availableProcessors();
+        final int workPerProcessor = (int) (TARGET_ITERATIONS / parallelism);
+        final long totalWork = workPerProcessor * (long) parallelism;
+        final String initialConditions = "(" + masterSeed + "L," + limits.maxTupleDepth + ',' + limits.maxTupleLength + ',' + limits.maxArrayDepth + ',' + limits.maxArrayLength + ")";
+        System.out.println("Running\t\t" + totalWork + "\t" + initialConditions + " with " + TIMEOUT_SECONDS + "-second timeout ...");
+        TestUtils.parallelRun(parallelism, TIMEOUT_SECONDS, (int i) -> doMonteCarlo(parallelism, masterSeed, masterSeed + i, workPerProcessor, limits))
+                .run();
+        System.out.println("Finished\t" + totalWork + "\t" + initialConditions);
     }
 
-    static void doMonteCarlo(long threadSeed, int n) {
+    static void doMonteCarlo(final int parallelism,
+                             final long masterSeed,
+                             final long threadSeed,
+                             final int n,
+                             final MonteCarloTestCase.Limits limits) {
 
         final StringBuilder log = new StringBuilder();
 
-        final Random r = new Random(threadSeed);
+        final Random caseGen = new Random(threadSeed);
         final Keccak k = new Keccak(256);
-
-        final String desc = "thread-" + Thread.currentThread().getId() + " seed: " + threadSeed + "L";
 
         final Random instance = new Random();
 
         int i = 0;
-        MonteCarloTestCase testCase = null;
-        for (; i < n; i++) {
+        MonteCarloTestCase testCase;
+        long caseSeed = -1;
+        while (i < n) {
+            testCase = null;
             try {
-                testCase = new MonteCarloTestCase(r.nextLong(), 4, 3, 3, 4, r, k);
-//                if(testCase.function.getCanonicalSignature().contains("int[")) throw new Error("canonicalization failed!");
+                testCase = new MonteCarloTestCase(caseSeed = caseGen.nextLong(), limits, instance, k);
+//                if(testCase.function.getInputs().getCanonicalType().contains("int[")) throw new Error("canonicalization failed!");
                 testCase.runAll(instance);
 //                if(System.nanoTime() % 50_000_000 == 0) throw new Error("simulated random error");
 //                log.append('#')
@@ -171,36 +171,23 @@ public class MonteCarloTest {
             } catch (Throwable t) {
                 System.out.println(log);
                 sleep();
-                System.err.println("#" + i + " failed for " + testCase);
-                System.err.println(desc);
-                repro(testCase, false);
+                final String desc = "thread-" + Thread.currentThread().getId()
+                                    + " seed: " + threadSeed
+                                    + "L\nMASTER SEED: " + masterSeed
+                                    + "\nparallelism: " + parallelism;
+                if (testCase == null) {
+                    System.err.println("#" + i + " failed to initialize with seed " + caseSeed + "\n" + desc);
+                } else {
+                    System.err.println("#" + i + " failed for " + testCase + "\n" + desc);
+                    repro(testCase, false);
+                }
                 throw t;
+            } finally {
+                i++;
             }
         }
 
         if(log.length() > 0) System.out.println(log);
-        System.out.println(desc);
-    }
-
-    private static class GambleGambleRunnable implements Runnable {
-
-        GambleGambleRunnable(long seed, int n) {
-            this.seed = seed;
-            this.n = n;
-        }
-
-        private final long seed;
-        private final int n;
-        Throwable thrown = null;
-
-        @Override
-        public void run() {
-            try {
-                doMonteCarlo(seed, n);
-            } catch (Throwable t) {
-                thrown = t;
-            }
-        }
     }
 
     private static class MonteCarloTask extends RecursiveAction {
@@ -254,49 +241,38 @@ public class MonteCarloTest {
     }
 
     @Test
-    public void testThreadSafety() throws InterruptedException, TimeoutException {
-
-        final Random r = TestUtils.seededRandom();
+    public void testThreadSafety() throws InterruptedException, TimeoutException, ExecutionException {
+        final Random r = new Random(TestUtils.getSeed());
         final Keccak k = new Keccak(256);
         final MonteCarloTestCase one = newComplexTestCase(r, k);
         final MonteCarloTestCase two = newComplexTestCase(r, k);
 
         System.out.println(one);
         System.out.println(two);
-        final MonteCarloTask oneTask = new MonteCarloTask(one, 0, 308_011);
 
-        final int parallelism = Runtime.getRuntime().availableProcessors();
-        final ExecutorService threadPool = Executors.newFixedThreadPool(parallelism);
+        final ForkJoinPool fjPool = ForkJoinPool.commonPool();
+        fjPool.invoke(new MonteCarloTask(one, 0, 308_011));
 
-        ForkJoinPool fjPool = new ForkJoinPool();
-        fjPool.invoke(oneTask);
+        TestUtils.parallelRun(Runtime.getRuntime().availableProcessors(), 3L, (int id) -> {
+            for (int j = 0; j < 500; j++) {
+                two.runStandard();
+            }
+        }).run();
 
-        for (int i = 0; i < parallelism; i++) {
-            threadPool.submit(() -> {
-                for (int j = 0; j < 500; j++)
-                    two.runStandard();
-            });
-        }
-
-        for (int j = 0; j < 500; j++) {
-            two.runStandard();
-        }
-
-        requireNoTimeout(shutdownAwait(threadPool, 20L));
-        requireNoTimeout(shutdownAwait(fjPool, 10L));
+        requireNoTimeout(fjPool.awaitQuiescence(3L, TimeUnit.SECONDS));
     }
 
     @Test
     public void testNotSerializable() throws Throwable {
         final Keccak k = new Keccak(256);
-        final MonteCarloTask original = new MonteCarloTask(newComplexTestCase(TestUtils.seededRandom(), k), 0, 1);
+        final MonteCarloTask original = new MonteCarloTask(newComplexTestCase(new Random(TestUtils.getSeed()), k), 0, 1);
         final ByteArrayOutputStream baos = new ByteArrayOutputStream();
 
-        TestUtils.assertThrown(NotSerializableException.class, "com.esaulpaugh.headlong.abi.Tuple", () -> new ObjectOutputStream(baos)
+        TestUtils.assertThrown(NotSerializableException.class, "com.esaulpaugh.headlong.abi.MonteCarloTestCase", () -> new ObjectOutputStream(baos)
                 .writeObject(original));
 
         TestUtils.assertThrown(WriteAbortedException.class,
-                "writing aborted; java.io.NotSerializableException: com.esaulpaugh.headlong.abi.Tuple",
+                "writing aborted; java.io.NotSerializableException: com.esaulpaugh.headlong.abi.MonteCarloTestCase",
                 () -> new ObjectInputStream(new ByteArrayInputStream(baos.toByteArray()))
                 .readObject()
         );
@@ -305,12 +281,12 @@ public class MonteCarloTest {
     private static MonteCarloTestCase newComplexTestCase(Random r, Keccak k) {
         long seed = TestUtils.getSeed();
         final long origSeed = seed;
-
+        final MonteCarloTestCase.Limits limits = new MonteCarloTestCase.Limits(4, 4, 2, 2);
         MonteCarloTestCase testCase;
         String sig;
         do {
             seed++;
-            testCase = new MonteCarloTestCase(seed, 4, 4, 2, 2, r, k);
+            testCase = new MonteCarloTestCase(seed, limits, r, k);
             sig = testCase.function.getCanonicalSignature();
         } while (
                 sig.endsWith("()")
@@ -327,7 +303,8 @@ public class MonteCarloTest {
     @Disabled("run if you need to generate random test cases")
     @Test
     public void printNewTestCases() {
-        final Random r = TestUtils.seededRandom();
+        final MonteCarloTestCase.Limits limits = new MonteCarloTestCase.Limits(3, 3, 3, 3);
+        final Random r = new Random();
         final Keccak k = new Keccak(256);
         final Gson ugly = new GsonBuilder().create();
         final JsonPrimitive version = new JsonPrimitive("5.6.0+commit.c786693");
@@ -335,11 +312,11 @@ public class MonteCarloTest {
         for(int i = 0; i < 250; i++) {
             MonteCarloTestCase testCase;
             do {
-                testCase = new MonteCarloTestCase(r.nextLong(), 3, 3, 3, 3, r, k);
+                testCase = new MonteCarloTestCase(r.nextLong(), limits, r, k);
             } while (testCase.argsTuple.isEmpty());
             array.add(testCase.toJsonElement(ugly, "headlong_" + i, version));
         }
-        System.out.println(JsonUtils.toPrettyPrint(array));
+        System.out.println(TestUtils.toPrettyPrint(array));
     }
 
     private static void sleep() {
@@ -377,16 +354,16 @@ public class MonteCarloTest {
 
         final Random r = TestUtils.seededRandom();
 
-        final char[] lowercase = "abcdefghijklmnopqrstuvwxyz".toCharArray();
-//        final char[] allCase = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz".toCharArray();
+        final char[] alphabet = "abcdefghijklmnopqrstuvwxyz".toCharArray();
+//        final char[] alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz".toCharArray();
 
         final String paramsTupleStr = "()";
 
-        for (char first : lowercase) {
+        for (char first : alphabet) {
             final HashMap<String, String> signatureMap = new HashMap<>(n / 20, 0.75f);
             final SortedSet<String> sorted = new TreeSet<>();
             for (int i = 0; i < n; i++) {
-                final String str = generateName(first, lowercase, r) + paramsTupleStr;
+                final String str = generateName(first, alphabet, r) + paramsTupleStr;
                 final Function foo = Function.parse(str);
                 final String selectorHex = foo.selectorHex();
                 final String signature = foo.getCanonicalSignature();

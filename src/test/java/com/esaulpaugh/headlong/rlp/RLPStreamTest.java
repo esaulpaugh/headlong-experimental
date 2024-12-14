@@ -16,16 +16,15 @@
 package com.esaulpaugh.headlong.rlp;
 
 import com.esaulpaugh.headlong.TestUtils;
-import com.esaulpaugh.headlong.rlp.util.Notation;
 import com.esaulpaugh.headlong.util.Strings;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
-import java.io.OutputStream;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
 import java.util.ArrayList;
@@ -36,6 +35,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CyclicBarrier;
 import java.util.stream.Stream;
 
@@ -61,59 +61,55 @@ public class RLPStreamTest {
             (byte) 0xca, (byte) 0x84, 92, '\r', '\n', '\f', (byte) 0x84, '\u0009', 'o', 'g', 's',
     };
 
-	@Test
-	public void testRLPOutputStream() throws Throwable {
-		Object[] objects = new Object[] {
-				Strings.decode("0573490923738490"),
-				new HashSet<byte[]>(),
-				new Object[] { new byte[] { 0x77, 0x61 } }
-		};
-		TestUtils.assertThrown(NullPointerException.class, () -> {try(RLPOutputStream ros = new RLPOutputStream(null)){}});
-		try (RLPOutputStream ros = new RLPOutputStream()) {
-			ros.write(0xc0);
-			ros.write(new byte[] { (byte) 0x7f, (byte) 0x20 });
-			ros.writeAll(new byte[] { 0x01 }, new byte[] { 0x02 });
-			ros.writeAll(Collections.singletonList(new byte[] { 0x03 }));
-			ros.writeList(new byte[] { 0x04 }, new byte[] { 0x05 }, new byte[] { 0x06 });
-			byte[] bytes = ros.getByteArrayOutputStream().toByteArray();
-			assertEquals("81c0827f20010203c3040506", Strings.encode(bytes));
-		}
-		try (RLPOutputStream ros = new RLPOutputStream()) {
-			Notation notation = Notation.forObjects(objects);
-			ros.writeAll(objects);
-			byte[] bytes = ros.getByteArrayOutputStream().toByteArray();
-			assertEquals(notation, Notation.forEncoding(bytes));
-		}
-		try (RLPOutputStream ros = new RLPOutputStream()) {
-			ros.writeList(Arrays.asList(objects));
-			byte[] bytes = ros.getByteArrayOutputStream().toByteArray();
-			assertEquals(Notation.forObjects(new Object[] { objects }), Notation.forEncoding(bytes));
-			assertEquals("ce880573490923738490c0c3827761", ros.getByteArrayOutputStream().toString());
-			assertEquals("ce880573490923738490c0c3827761", ros.getOutputStream().toString());
-			assertEquals("ce880573490923738490c0c3827761", ros.toString());
-		}
-	}
+    @Test
+    public void testRLPOutputStream() throws Throwable {
+        TestUtils.assertThrown(NullPointerException.class, () -> {try(RLPOutputStream ros = new RLPOutputStream(null)){}});
+        try (Baos baos = new Baos(); RLPOutputStream ros = new RLPOutputStream(baos)) {
+            ros.write(0xc0);
+            ros.write(new byte[] { (byte) 0x7f, (byte) 0x20 });
+            ros.writeSequence(new byte[] { 0x01 }, new byte[] { 0x02 });
+            ros.writeSequence(Collections.singletonList(new byte[] { 0x03 }));
+            ros.writeList(Arrays.asList(new byte[] { 0x04 }, new byte[] { 0x05 }, new byte[] { 0x06 }));
+            byte[] bytes = baos.toByteArray();
+            assertEquals("81c0827f20010203c3040506", Strings.encode(bytes));
+        }
+        Object[] objects = new Object[] {
+                Strings.decode("0573490923738490"),
+                new HashSet<byte[]>(),
+                new Object[] { new byte[] { 0x77, 0x61 } }
+        };
+        try (Baos baos = new Baos(); RLPOutputStream ros = new RLPOutputStream(baos)) {
+            ros.writeSequence(objects);
+            assertEquals(Notation.forObjects(objects), Notation.forEncoding(baos.toByteArray()));
+        }
+        try (Baos baos = new Baos(); RLPOutputStream ros = new RLPOutputStream(baos)) {
+            ros.writeList(objects);
+            assertEquals(Notation.forObjects((Object) objects), Notation.forEncoding(baos.toByteArray()));
+            assertEquals("ce880573490923738490c0c3827761", baos.toString());
+            assertEquals("ce880573490923738490c0c3827761", ros.toString());
+        }
+    }
 
     @Test
     public void testObjectRLPStream() throws IOException {
 
         // write RLP
-        RLPOutputStream ros = new RLPOutputStream();
-		try (ObjectOutputStream oos = new ObjectOutputStream(ros)) {
-			oos.writeUTF("hello");
+        Baos baos = new Baos();
+        try (ObjectOutputStream oos = new ObjectOutputStream(new RLPOutputStream(baos))) {
+            oos.writeUTF("hello");
 //        oos.flush();
-			oos.writeChar('Z');
-//			oos.writeObject(new Tuple("jinro", new byte[] { (byte) 0xc0 }, new Boolean[] { false, true }));
-			oos.flush();
-		}
+            oos.writeChar('Z');
+//            oos.writeObject(Tuple.of("jinro", new byte[] { (byte) 0xc0 }, new Boolean[] { false, true }));
+            oos.flush();
+        }
 
         // decode RLP
-        Iterator<RLPItem> iter = RLP_STRICT.sequenceIterator(ros.getByteArrayOutputStream().toByteArray());
+        Iterator<RLPItem> iter = RLP_STRICT.sequenceIterator(baos.toByteArray());
         ByteArrayOutputStream decoded = new ByteArrayOutputStream();
         int count = 0;
         while (iter.hasNext()) {
             RLPItem item = iter.next();
-            item.exportData(decoded);
+            item.copyData(decoded);
             count++;
         }
 
@@ -124,13 +120,43 @@ public class RLPStreamTest {
         ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(decoded.toByteArray()));
         assertEquals("hello", ois.readUTF());
         assertEquals('Z', ois.readChar());
-//        assertEquals(new Tuple("jinro", new byte[] { (byte) 0xc0 }, new Boolean[] { false, true }), ois.readObject());
+//        assertEquals(Tuple.of("jinro", new byte[] { (byte) 0xc0 }, new Boolean[] { false, true }), ois.readObject());
+    }
+
+    @Test
+    public void testCopyToOutputStream() throws IOException {
+        final byte[] encoding = new byte[] { (byte) 0xc1, (byte) 0x80 };
+        final Baos b = new Baos();
+        final RLPList x = RLP_STRICT.wrapList(encoding);
+        assertArrayEquals(Strings.EMPTY_BYTE_ARRAY, b.toByteArray());
+        x.copy(b);
+        assertArrayEquals(encoding, b.toByteArray());
+        x.copy(b);
+        assertArrayEquals(new byte[] { (byte) 0xc1, (byte) 0x80, (byte) 0xc1, (byte) 0x80 }, b.toByteArray());
+        x.copyData(b);
+        assertArrayEquals(new byte[] { (byte) 0xc1, (byte) 0x80, (byte) 0xc1, (byte) 0x80, (byte) 0x80 }, b.toByteArray());
+    }
+
+    @Test
+    public void testCopyToRLPOutputStream() throws IOException {
+        final byte[] encoding = new byte[] { (byte) 0x87, 0, 1, 2, 3, 4, 5, 6 };
+        final RLPString y = RLP_STRICT.wrapString(encoding);
+        {
+            final Baos b = new Baos();
+            final RLPOutputStream rlpOut = new RLPOutputStream(b);
+            y.copyData(rlpOut);
+            assertArrayEquals(encoding, b.toByteArray());
+        }
+        final Baos b = new Baos();
+        final RLPOutputStream rlpOut = new RLPOutputStream(b);
+        y.copy(rlpOut);
+        assertArrayEquals(new byte[] { (byte) 0x88, (byte) 0x87, 0, 1, 2, 3, 4, 5, 6 }, b.toByteArray());
     }
 
     @Test
     public void testStreamEasy() throws Throwable {
         RLPItem[] collected = RLPDecoderTest.collectAll(RLP_BYTES).toArray(RLPItem.EMPTY_ARRAY);
-        Stream<RLPItem> stream = RLP_STRICT.stream(RLP_BYTES, 0);
+        Stream<RLPItem> stream = RLPDecoder.stream(RLP_STRICT.sequenceIterator(RLP_BYTES, 0));
         RLPItem[] streamed = stream.toArray(RLPItem[]::new);
 
         assertTrue(Arrays.deepEquals(collected, streamed));
@@ -143,29 +169,24 @@ public class RLPStreamTest {
         TestUtils.assertThrown(IllegalArgumentException.class, "len is out of range: 10", () -> encodings.stream()
                 .map(RLP_STRICT::wrapItem)
                 .mapToInt(RLPItem::asInt)
-                .sum());
+                .forEach(System.out::println));
     }
 
     @Test
     public void testStreamHard() throws Throwable {
-        ReceiveStreamTask task = new ReceiveStreamTask();
-        task.run();
-        Throwable t = task.throwable;
-        if(t != null) {
-            throw t;
-        }
+        new ReceiveStreamTask().call();
     }
 
     @Test
     public void testUnrecoverable() throws Throwable {
         try (PipedOutputStream pos = new PipedOutputStream();
              PipedInputStream pis = new PipedInputStream(pos, 512);
-             Stream<RLPItem> stream = RLP_STRICT.stream(pis)) {
+             Stream<RLPItem> stream = RLPDecoder.stream(RLP_STRICT.sequenceIterator(pis))) {
             pos.write(0x81);
             pos.write(0x00);
             Iterator<RLPItem> iter = stream.iterator();
-            TestUtils.assertThrown(IllegalArgumentException.class, "invalid rlp for single byte @ 0", iter::hasNext);
-            try (Stream<RLPItem> stream2 = RLP_STRICT.stream(pis)) {
+            TestUtils.assertThrown(IllegalArgumentException.class, "invalid rlp for single byte @ 0", () -> System.out.println(iter.hasNext()));
+            try (Stream<RLPItem> stream2 = RLPDecoder.stream(RLP_STRICT.sequenceIterator(pis))) {
                 pos.write(0xf8);
                 pos.write(0x37);
                 Iterator<RLPItem> iter2 = stream2.iterator();
@@ -173,7 +194,7 @@ public class RLPStreamTest {
                     TestUtils.assertThrown(
                             IllegalArgumentException.class,
                             "long element data length must be 56 or greater; found: 55 for element @ 0",
-                            iter2::hasNext
+                            () -> System.out.println(iter2.hasNext())
                     );
                 }
             }
@@ -182,34 +203,30 @@ public class RLPStreamTest {
 
     @Test
     public void testInterfaces() {
-        try (Stream<RLPItem> stream = RLP_STRICT.stream(new ByteArrayInputStream(new byte[0]))) {
+        try (Stream<RLPItem> stream = RLPDecoder.stream(RLP_STRICT.sequenceIterator(new ByteArrayInputStream(new byte[0])))) {
             stream.forEach(System.out::println);
         }
     }
 
-    private static class ReceiveStreamTask implements Runnable {
+    private static class ReceiveStreamTask implements Callable<Void> {
 
-        private final long zero = System.nanoTime();
-        private final PipedOutputStream pos = new PipedOutputStream();
-        private final CyclicBarrier receiveBarrier = new CyclicBarrier(2);
-        private final CyclicBarrier sendBarrier = new CyclicBarrier(2);
-        private final SendStreamTask senderTask = new SendStreamTask(zero, pos, receiveBarrier, sendBarrier);
-
-        Throwable throwable;
+        private final long startTime = System.nanoTime();
 
         @Override
-        public void run() {
-            Thread senderThread = new Thread(senderTask);
-            try (Stream<RLPItem> stream = RLP_STRICT.stream(new PipedInputStream(pos, 512))) {
-
-                Iterator<RLPItem> iter = stream.iterator();
+        public Void call() throws Exception {
+            final PipedInputStream pis = new PipedInputStream(512);
+            final CyclicBarrier receiveBarrier = new CyclicBarrier(2);
+            final CyclicBarrier sendBarrier = new CyclicBarrier(2);
+            final Thread senderThread = new Thread(new SendStreamTask(startTime, pis, receiveBarrier, sendBarrier));
+            try (final Closeable ignored = pis) {
+                final Iterator<RLPItem> iter = RLP_STRICT.sequenceIterator(pis);
 
                 senderThread.setPriority(Thread.MAX_PRIORITY);
                 Thread.currentThread().setPriority(Thread.MAX_PRIORITY);
 
                 senderThread.start();
 
-                Runnable[] subtasks = new Runnable[] {
+                final Runnable[] subtasks = new Runnable[] {
                         () -> assertNoNext(iter),
                         () -> {
                             assertHasNext(iter);
@@ -244,44 +261,47 @@ public class RLPStreamTest {
                 }
 
                 senderThread.join();
-            } catch (Throwable io) {
-                throwable = io;
+            } catch (Exception ex) {
                 senderThread.interrupt();
+                throw ex;
             }
+            return null;
         }
 
         private void assertNoNext(Iterator<RLPItem> iter) throws RuntimeException {
             try {
-                RLPStreamTest.assertNoNext(zero, iter);
+                RLPStreamTest.assertNoNext(startTime, iter);
             } catch (Throwable e) {
                 throw new RuntimeException(e);
             }
         }
 
         private void assertHasNext(Iterator<RLPItem> iter) {
-            RLPStreamTest.assertHasNext(zero, iter);
+            RLPStreamTest.assertHasNext(startTime, iter);
         }
     }
 
     private static class SendStreamTask implements Runnable {
 
-        private final long zero;
-        private final OutputStream os;
+        private final long startTime;
+        private final Thread receiver;
+        private final PipedOutputStream pos;
         private final CyclicBarrier receiveBarrier;
         private final CyclicBarrier sendBarrier;
 
-        SendStreamTask(long zero, OutputStream os, CyclicBarrier receiveBarrier, CyclicBarrier sendBarrier) {
-            this.zero = zero;
-            this.os = os;
+        SendStreamTask(long startTime, PipedInputStream pis, CyclicBarrier receiveBarrier, CyclicBarrier sendBarrier) throws IOException {
+            this.startTime = startTime;
+            this.receiver = Thread.currentThread();
+            this.pos = new PipedOutputStream(pis);
             this.sendBarrier = sendBarrier;
             this.receiveBarrier = receiveBarrier;
         }
 
         @Override
         public void run() {
-            try {
-                final byte[] rlpString = RLPEncoder.encodeString(Strings.decode(TEST_STRING, UTF_8));
-                Runnable[] subtasks = new Runnable[] {
+            try (final Closeable ignored = this.pos) {
+                final byte[] rlpString = RLPEncoder.string(Strings.decode(TEST_STRING, UTF_8));
+                Runnable[] subtasks = new Runnable[]{
                         () -> write(TEST_BYTE),
                         () -> {
                             for (byte b : TEST_BYTES) {
@@ -299,35 +319,36 @@ public class RLPStreamTest {
                 };
 
                 doWait(sendBarrier);
-                for(Runnable subtask : subtasks) {
+                for (Runnable subtask : subtasks) {
                     signalWait(receiveBarrier, sendBarrier);
                     subtask.run();
                 }
                 doWait(receiveBarrier);
-            } catch (InterruptedException ie) {
-                ie.printStackTrace();
-                throw new RuntimeException(ie);
+            } catch (InterruptedException | IOException ex) {
+                ex.printStackTrace();
+                receiver.interrupt();
+                throw new RuntimeException(ex);
             }
         }
 
         private void write(byte b) throws RuntimeException {
             try {
-                os.write(b);
-                logWrite(zero, "'" + (char) b + "' (0x" + Strings.encode(b) +")");
+                pos.write(b);
+                logWrite(startTime, "'" + (char) b + "' (0x" + Strings.encode(b) +")");
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
         }
     }
-    
-    private static void doWait(CyclicBarrier ours) throws InterruptedException {
+
+    private static void doWait(CyclicBarrier barrier) throws InterruptedException {
         try {
-            ours.await();
+            barrier.await();
         } catch (BrokenBarrierException bbe) {
             throw new RuntimeException(bbe);
         }
     }
-    
+
     private static void signalWait(CyclicBarrier theirs, CyclicBarrier ours) throws InterruptedException {
         try {
             theirs.await(); // wake up other thread
@@ -349,16 +370,33 @@ public class RLPStreamTest {
         logReceipt(zero, false);
     }
 
-    private static void logWrite(long zero, String message) {
-        System.out.println(timestamp(zero) + "\u0009write " + message);
+    private static void logWrite(long startTime, String message) {
+        System.out.println(timestamp(startTime) + "\u0009write " + message);
     }
 
-    private static void logReceipt(long zero, boolean hasNext) {
-        System.out.println(timestamp(zero) + '\u0009' + (hasNext ? "hasNext" : "no next"));
+    private static void logReceipt(long startTime, boolean hasNext) {
+        System.out.println(timestamp(startTime) + '\u0009' + (hasNext ? "hasNext" : "no next"));
     }
 
-    private static String timestamp(long zero) {
-        String time = String.valueOf((System.nanoTime() - zero) / 1000000.0);
-        return "t=" + time + "0".repeat(10 - time.length());
+    private static String timestamp(long startTime) {
+        double elapsedMillis = (System.nanoTime() - startTime) / 1000000.0;
+        String tString = String.valueOf(elapsedMillis);
+        StringBuilder sb = new StringBuilder("t=");
+        sb.append(tString);
+        int n = 10 - tString.length();
+        for (int i = 0; i < n; i++) {
+            sb.append('0');
+        }
+        return sb.toString();
+    }
+
+    public static class Baos extends ByteArrayOutputStream {
+
+        Baos() {}
+
+        @Override
+        public synchronized String toString() {
+            return Strings.encode(buf, 0, count, Strings.HEX);
+        }
     }
 }

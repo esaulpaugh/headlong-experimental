@@ -15,14 +15,15 @@
 */
 package com.esaulpaugh.headlong.abi;
 
+/** Enum representing the variants of {@link ABIObject}. */
 public enum TypeEnum {
 
-    FUNCTION(ABIJSON.FUNCTION),
-    RECEIVE(ABIJSON.RECEIVE),
-    FALLBACK(ABIJSON.FALLBACK),
-    CONSTRUCTOR(ABIJSON.CONSTRUCTOR),
-    EVENT(ABIJSON.EVENT),
-    ERROR(ABIJSON.ERROR);
+    FUNCTION(ABIJSON.FUNCTION, true),
+    RECEIVE(ABIJSON.RECEIVE, true),
+    FALLBACK(ABIJSON.FALLBACK, true),
+    CONSTRUCTOR(ABIJSON.CONSTRUCTOR, true),
+    EVENT(ABIJSON.EVENT, false),
+    ERROR(ABIJSON.ERROR, false);
 
     static final int ORDINAL_FUNCTION = 0;
     static final int ORDINAL_RECEIVE = 1;
@@ -31,10 +32,12 @@ public enum TypeEnum {
     static final int ORDINAL_EVENT = 4;
     static final int ORDINAL_ERROR = 5;
 
-    final String name;
+    private final String name;
+    public final boolean isFunction;
 
-    TypeEnum(String name) {
+    TypeEnum(String name, boolean isFunction) {
         this.name = name;
+        this.isFunction = isFunction;
     }
 
     @Override
@@ -42,22 +45,19 @@ public enum TypeEnum {
         return name;
     }
 
-    public static TypeEnum parse(String typeString) {
-        if(typeString == null) {
+    public static TypeEnum parse(final String typeString) {
+        if (ABIJSON.FUNCTION.equals(typeString) || typeString == null) {
             return FUNCTION;
         }
-        return switch (typeString) {
-            case ABIJSON.FUNCTION -> FUNCTION;
-            case ABIJSON.RECEIVE -> RECEIVE;
-            case ABIJSON.FALLBACK -> FALLBACK;
-            case ABIJSON.CONSTRUCTOR -> CONSTRUCTOR;
-            case ABIJSON.EVENT -> EVENT;
-            case ABIJSON.ERROR -> ERROR;
-            default -> throw unexpectedType(typeString);
-        };
+        if (ABIJSON.EVENT.equals(typeString)) return EVENT;
+        if (ABIJSON.ERROR.equals(typeString)) return ERROR;
+        if (ABIJSON.RECEIVE.equals(typeString)) return RECEIVE;
+        if (ABIJSON.FALLBACK.equals(typeString)) return FALLBACK;
+        if (ABIJSON.CONSTRUCTOR.equals(typeString)) return CONSTRUCTOR;
+        throw unexpectedType(typeString);
     }
 
     static IllegalArgumentException unexpectedType(String t) {
-        return new IllegalArgumentException("unexpected type: " + (t == null ? null : "\"" + t + "\""));
+        return new IllegalArgumentException("unexpected type: " + (t == null ? null : '"' + t + '"'));
     }
 }

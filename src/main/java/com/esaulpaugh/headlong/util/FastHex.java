@@ -15,6 +15,8 @@
 */
 package com.esaulpaugh.headlong.util;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.function.IntUnaryOperator;
 
 /** Hexadecimal codec optimized for small inputs. */
@@ -31,12 +33,10 @@ public final class FastHex {
     private static final short[] ENCODE_TABLE = new short[1 << Byte.SIZE];
 
     static {
-        final char[] chars = new char[] { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
-        final int leftNibbleMask = 0xF0;
-        final int rightNibbleMask = 0x0F;
+        final byte[] chars = "0123456789abcdef".getBytes(StandardCharsets.US_ASCII);
         for (int i = 0; i < ENCODE_TABLE.length; i++) {
-            char leftChar = chars[(i & leftNibbleMask) >>> BITS_PER_CHAR];
-            char rightChar = chars[i & rightNibbleMask];
+            byte leftChar = chars[(i & 0xF0) >>> BITS_PER_CHAR];
+            byte rightChar = chars[i & 0x0F];
             ENCODE_TABLE[i] = (short) ((leftChar << Byte.SIZE) | rightChar);
         }
     }
@@ -48,7 +48,7 @@ public final class FastHex {
     @SuppressWarnings("deprecation")
     public static String encodeToString(byte[] buffer, int offset, int len) {
         byte[] enc = encodeToBytes(buffer, offset, len);
-        return new String(enc, 0, 0, enc.length); // faster on Java 9+ (compact strings on by default)
+        return new String(enc, 0, 0, enc.length); // on Java 9+ (compact strings on by default), faster than creating String from char[]
     }
 
     public static byte[] encodeToBytes(byte... buffer) {
@@ -56,21 +56,29 @@ public final class FastHex {
     }
 
     public static byte[] encodeToBytes(byte[] buffer, int offset, int len) {
-        final int end = offset + len;
         byte[] bytes = new byte[len * CHARS_PER_BYTE];
-        for (int j = 0; offset < end; offset++, j += CHARS_PER_BYTE) {
-            int hexPair = ENCODE_TABLE[buffer[offset] & 0xFF];
-            bytes[j] = (byte) (hexPair >>> Byte.SIZE); // left
-            bytes[j+1] = (byte) hexPair; // right
-        }
+        encodeBytes(buffer, offset, len, bytes, 0);
         return bytes;
     }
 
-    public static byte[] decode(String hex) {
+    public static void encodeBytes(byte[] buffer, int offset, int len, byte[] dest, int destOff) {
+        final int end = offset + len;
+        for (int j = destOff; offset < end; offset++, j += CHARS_PER_BYTE) {
+            int hexPair = ENCODE_TABLE[buffer[offset] & 0xFF];
+            dest[j] = (byte) (hexPair >>> Byte.SIZE); // left
+            dest[j+1] = (byte) hexPair; // right
+        }
+    }
+
+    public static byte[] decode(CharSequence hex) {
         return decode(hex, 0, hex.length());
     }
 
-    public static byte[] decode(String hex, int offset, int len) {
+    public static byte[] decode(byte[] hexBytes) {
+        return decode(hexBytes, 0, hexBytes.length);
+    }
+
+    public static byte[] decode(CharSequence hex, int offset, int len) {
         return decode(offset, len, hex::charAt);
     }
 
@@ -79,26 +87,40 @@ public final class FastHex {
     }
 
     private static byte[] decode(int offset, int len, IntUnaryOperator extractor) {
-        if (!Integers.isMultiple(len, CHARS_PER_BYTE)) {
-            throw new IllegalArgumentException("len must be a multiple of two");
-        }
-        byte[] dest = new byte[len / CHARS_PER_BYTE];
+        final byte[] dest = new byte[decodedLength(len)];
         for (int i = 0; i < dest.length; i++, offset += CHARS_PER_BYTE) {
             dest[i] = (byte) decodeByte(extractor, offset);
         }
         return dest;
     }
 
-    private static int decodeByte(IntUnaryOperator extractor, int offset) {
-        return decodeNibble(extractor.applyAsInt(offset), offset) << BITS_PER_CHAR | decodeNibble(extractor.applyAsInt(++offset), offset);
+    public static int decodedLength(int encodedLen) {
+        if (!Integers.isMultiple(encodedLen, CHARS_PER_BYTE)) {
+            throw new IllegalArgumentException("len must be a multiple of two");
+        }
+        return encodedLen / CHARS_PER_BYTE;
     }
 
-    private static int decodeNibble(int c, int offset) {
-        return switch (c) {
-            case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' -> c - '0';
-            case 'A', 'B', 'C', 'D', 'E', 'F' -> c - ('A' - 0xA);
-            case 'a', 'b', 'c', 'd', 'e', 'f' -> c - ('a' - 0xa);
-            default -> throw new IllegalArgumentException("illegal hex val @ " + offset);
-        };
+    private static final int[] DECODE_TABLE = new int[256];
+
+    static {
+        Arrays.fill(DECODE_TABLE, -(0xF << BITS_PER_CHAR) - 1);
+        for (int i = '0'; i <= '9'; i++) DECODE_TABLE[i] = i - '0' + 0x0;
+        for (int i = 'A'; i <= 'F'; i++) DECODE_TABLE[i] = i - 'A' + 0xA;
+        for (int i = 'a'; i <= 'f'; i++) DECODE_TABLE[i] = i - 'a' + 0xA;
+    }
+
+    private static int decodeByte(IntUnaryOperator extractor, int offset) {
+        try {
+            int left_ = DECODE_TABLE[extractor.applyAsInt(offset)];
+            int right = DECODE_TABLE[extractor.applyAsInt(++offset)];
+            int b = (left_ << BITS_PER_CHAR) + right;
+            if (b < 0) {
+                throw new IllegalArgumentException("illegal hex val @ " + (left_ < 0 ? offset - 1 : offset));
+            }
+            return b;
+        } catch (ArrayIndexOutOfBoundsException aioobe) {
+            throw new IllegalArgumentException("illegal hex val @ " + offset, aioobe);
+        }
     }
 }

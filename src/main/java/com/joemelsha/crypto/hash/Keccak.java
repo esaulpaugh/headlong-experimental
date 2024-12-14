@@ -3,6 +3,7 @@ package com.joemelsha.crypto.hash;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.security.MessageDigest;
+import java.util.Arrays;
 
 /**
  * @author Joseph Robert Melsha (joe.melsha@live.com)
@@ -28,54 +29,49 @@ import java.security.MessageDigest;
 public final class Keccak extends MessageDigest {
 
     private static final int MAX_STATE_SIZE = 1600;
-    private static final int MAX_STATE_SIZE_WORDS = MAX_STATE_SIZE / Long.SIZE;
 
-    private final transient int digestSizeBytes;
+    private final int digestSizeBytes;
     private final transient int rateSizeBits;
     private final transient int rateSizeWords;
 
-    private final long[] state = new long[MAX_STATE_SIZE_WORDS];
+    private final long[] state = new long[MAX_STATE_SIZE / Long.SIZE];
     private int rateBits; // = 0
 
-    private transient ByteBuffer out;
-
     public Keccak(int digestSizeBits) {
-        this("Keccak-", digestSizeBits);
-    }
-
-    protected Keccak(String variantPrefix, int digestSizeBits) {
-        super((variantPrefix + digestSizeBits).intern());
-        int rateSizeBits = rateSizeBitsFor(digestSizeBits);
-        if (rateSizeBits + digestSizeBits * 2 != MAX_STATE_SIZE)
-            throw new IllegalArgumentException("Invalid rateSizeBits + digestSizeBits * 2: " + rateSizeBits + " + " + digestSizeBits + " * 2 != " + MAX_STATE_SIZE);
-        if (rateSizeBits <= 0 || (rateSizeBits & 0x3f) != 0)
-            throw new IllegalArgumentException("Invalid rateSizeBits: " + rateSizeBits);
-
+        super(getAlgName(digestSizeBits));
         this.digestSizeBytes = digestSizeBits >>> 3;
-
-        this.rateSizeBits = rateSizeBits;
+        this.rateSizeBits = rateSizeBitsFor(digestSizeBits);
         this.rateSizeWords = rateSizeBits >>> 6;
     }
 
-    protected int rateSizeBitsFor(int digestSizeBits) {
-        return switch (digestSizeBits) {
-            case 128 -> 1344;
-            case 224 -> 1152;
-            case 256 -> 1088;
-            case 288 -> 1024;
-            case 384 -> 832;
-            case 512 -> 576;
-            default -> throw new IllegalArgumentException("Invalid digestSizeBits: " + digestSizeBits + " ⊄ { 128, 224, 256, 288, 384, 512 }");
-        };
+    private static String getAlgName(int digestSizeBits) {
+        switch (digestSizeBits) {
+        case 128: return "Keccak-128";
+        case 224: return "Keccak-224";
+        case 256: return "Keccak-256";
+        case 288: return "Keccak-288";
+        case 384: return "Keccak-384";
+        case 512: return "Keccak-512";
+        default: throw new AssertionError();
+        }
+    }
+
+    private static int rateSizeBitsFor(int digestSizeBits) {
+        switch (digestSizeBits) {
+        case 128: return 1344;
+        case 224: return 1152;
+        case 256: return 1088;
+        case 288: return 1024;
+        case 384: return  832;
+        case 512: return  576;
+        default: throw new IllegalArgumentException("Invalid digestSizeBits: " + digestSizeBits + " \u2284 { 128, 224, 256, 288, 384, 512 }");
+        }
     }
 
     @Override
     protected void engineReset() {
-        for (int i = 0; i < MAX_STATE_SIZE_WORDS; i++) {
-            state[i] = 0L;
-        }
+        Arrays.fill(state, 0L);
         rateBits = 0;
-        out = null; // very important to avoid leaking memory
     }
 
     @Override
@@ -128,7 +124,7 @@ public final class Keccak extends MessageDigest {
 
             state[i] = w;
             this.rateBits = rateBytes << 3;
-            if (remaining <= 0) {
+            if (remaining == 0) {
                 return;
             }
         }
@@ -168,20 +164,13 @@ public final class Keccak extends MessageDigest {
 
         if (remaining > 0) {
             // remaining in [1, 7]
+            this.rateBits += remaining << 3;
             long w = state[rateWords];
             int shiftAmount = 0;
-            switch (remaining) {
-            case 7: w ^= in.get() & 0xFFL; shiftAmount = Byte.SIZE;
-            case 6: w ^= (in.get() & 0xFFL) << shiftAmount; shiftAmount += Byte.SIZE;
-            case 5: w ^= (in.get() & 0xFFL) << shiftAmount; shiftAmount += Byte.SIZE;
-            case 4: w ^= (in.get() & 0xFFL) << shiftAmount; shiftAmount += Byte.SIZE;
-            case 3: w ^= (in.get() & 0xFFL) << shiftAmount; shiftAmount += Byte.SIZE;
-            case 2: w ^= (in.get() & 0xFFL) << shiftAmount; shiftAmount += Byte.SIZE;
-            case 1: w ^= (in.get() & 0xFFL) << shiftAmount;
-            }
-
+            do {
+                w ^= (in.get() & 0xFFL) << shiftAmount; shiftAmount += Byte.SIZE;
+            } while (--remaining > 0);
             state[rateWords] = w;
-            this.rateBits += remaining << 3;
         }
     }
 
@@ -193,14 +182,12 @@ public final class Keccak extends MessageDigest {
     }
 
     public void digest(ByteBuffer out) {
-        this.out = out;
-        engineDigest();
+        out.put(engineDigest(), 0, Math.min(engineGetDigestLength(), out.remaining()));
     }
 
     @Override
     protected int engineDigest(byte[] buf, int offset, int len) {
-        out = ByteBuffer.wrap(buf, offset, len);
-        engineDigest();
+        System.arraycopy(engineDigest(), 0, buf, offset, len);
         return len;
     }
 
@@ -209,53 +196,32 @@ public final class Keccak extends MessageDigest {
 
         pad();
 
-        int remaining;
-        if(out != null) {
-            remaining = out.remaining();
-        } else {
-            out = ByteBuffer.allocate(digestSizeBytes);
-            remaining = digestSizeBytes;
-        }
+        int remaining = engineGetDigestLength();
+        final ByteBuffer out = ByteBuffer.allocate(remaining);
 
         int rateWords = 0;
         int outWords = remaining >>> 3;
         if (outWords > 0) {
             out.order(ByteOrder.LITTLE_ENDIAN);
             do {
-                if (rateWords >= rateSizeWords) {
-                    keccak(state); // squeeze
-                    rateWords = 0;
-                }
-                int c = rateSizeWords - rateWords;
-                if (c > outWords)
+                int c = rateSizeWords;
+                if (c > outWords) {
                     c = outWords;
+                }
                 outWords -= c;
-                c += rateWords;
                 do {
-                    out.putLong(state[rateWords]);
-                    rateWords++;
+                    out.putLong(state[rateWords++]);
                 } while (rateWords < c);
             } while (outWords > 0);
             remaining &= 0b111;
         }
 
         if (remaining > 0) {
-            if (rateWords >= rateSizeWords) {
-                keccak(state); // squeeze
-                rateWords = 0;
-            }
             long w = state[rateWords];
-
             int shiftAmount = 0;
-            switch (remaining) {
-            case 7: out.put((byte) w); shiftAmount = Byte.SIZE;
-            case 6: out.put((byte) (w >>> shiftAmount)); shiftAmount += Byte.SIZE;
-            case 5: out.put((byte) (w >>> shiftAmount)); shiftAmount += Byte.SIZE;
-            case 4: out.put((byte) (w >>> shiftAmount)); shiftAmount += Byte.SIZE;
-            case 3: out.put((byte) (w >>> shiftAmount)); shiftAmount += Byte.SIZE;
-            case 2: out.put((byte) (w >>> shiftAmount)); shiftAmount += Byte.SIZE;
-            case 1: out.put((byte) (w >>> shiftAmount));
-            }
+            do {
+                out.put((byte) (w >>> shiftAmount)); shiftAmount += Byte.SIZE;
+            } while (--remaining > 0);
         }
 
         try {
@@ -265,7 +231,7 @@ public final class Keccak extends MessageDigest {
         }
     }
 
-    protected void pad() {
+    private void pad() {
         updateBits(0x1L, 1); // Keccak padding: 1
 //        updateBits(0x6L, 3); // SHA-3 padding:011 (little-endian) = 0x6
         if (rateBits >= rateSizeBits) {
@@ -278,11 +244,13 @@ public final class Keccak extends MessageDigest {
 
     void updateBits(long in, int inBits) {
 
-        if (inBits < 0 || inBits > 64)
-            throw new IllegalArgumentException("Invalid valueBits: " + 0 + " < " + inBits + " > " + 64);
+        if (inBits < 0 || inBits > 64) {
+            throw new IllegalArgumentException("bad inBits: " + inBits);
+        }
 
-        if (inBits <= 0)
+        if (inBits == 0) {
             return;
+        }
 
         int rateBits = this.rateBits;
         int rateBitsWord = rateBits & 0x3f; // mod 64
@@ -290,11 +258,11 @@ public final class Keccak extends MessageDigest {
             int c = 64 - rateBitsWord;
             if (c > inBits)
                 c = inBits;
-//            state[rateBits >>> 6] ^= (in & (-1L >>> -c)) << rateBitsWord;
-            state[rateBits >>> 6] ^= (in & (-1L >>> (64 - c))) << rateBitsWord;
+            state[rateBits >>> 6] ^= (in & (-1L >>> -c)) << rateBitsWord;
+//            state[rateBits >>> 6] ^= (in & (-1L >>> (64 - c))) << rateBitsWord;
             rateBits += c;
             inBits -= c;
-            if (inBits <= 0) {
+            if (inBits == 0) {
                 this.rateBits = rateBits;
                 return;
             }
@@ -306,8 +274,8 @@ public final class Keccak extends MessageDigest {
             this.rateBits = inBits;
             return;
         }
-//        state[rateBits >>> 6] ^= in & (-1L >>> -inBits);
-        state[rateBits >>> 6] ^= in & (-1L >>> (64 - inBits));
+        state[rateBits >>> 6] ^= in & (-1L >>> -inBits);
+//        state[rateBits >>> 6] ^= in & (-1L >>> (64 - inBits));
         this.rateBits = rateBits + inBits;
     }
 
@@ -317,7 +285,6 @@ public final class Keccak extends MessageDigest {
         long x0, x1, x2, x3, x4;
         long t0, t1, t2, t3, t4;
         long c0, c1, c2, c3, c4;
-        final long[] rc = RC;
 
         i = 0;
         do {
@@ -380,7 +347,7 @@ public final class Keccak extends MessageDigest {
             } while (c < 25);
 
             //iota
-            a[0] ^= rc[i];
+            a[0] ^= RC[i];
 
             i++;
         } while (i < 24);

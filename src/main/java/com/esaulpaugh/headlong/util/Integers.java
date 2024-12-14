@@ -98,7 +98,7 @@ public final class Integers {
      * @see #getByte(byte[], int, int, boolean)
      */
     public static int putByte(byte val, byte[] o, int i) {
-        if(val != 0) {
+        if (val != 0) {
             o[i] = val;
             return 1;
         }
@@ -117,7 +117,7 @@ public final class Integers {
      * @see #getShort(byte[], int, int, boolean)
      */
     public static int putShort(short val, byte[] o, int i) {
-        if(val != 0) {
+        if (val != 0) {
             byte b = (byte) val;
 //            val = (short) (val >>> Byte.SIZE); // ICAST_QUESTIONABLE_UNSIGNED_RIGHT_SHIFT
             val = (short) (val >> Byte.SIZE); // high bytes chopped off either way, see above
@@ -139,7 +139,7 @@ public final class Integers {
      * @see #getInt(byte[], int, int, boolean)
      */
     public static int putInt(int val, byte[] o, int i) {
-        if(val != 0) {
+        if (val != 0) {
             byte d = (byte) val;
             if ((val >>>= Byte.SIZE) != 0) {
                 byte c = (byte) val;
@@ -165,7 +165,7 @@ public final class Integers {
      * @see #getLong(byte[], int, int, boolean)
      */
     public static int putLong(long val, byte[] o, int i) {
-        if(val != 0) {
+        if (val != 0) {
             byte h = (byte) val;
             if ((val >>>= Byte.SIZE) != 0) {
                 byte g = (byte) val;
@@ -192,7 +192,7 @@ public final class Integers {
     }
 
     public static int putLong(long val, ByteBuffer o) {
-        if(val != 0) {
+        if (val != 0) {
             byte h = (byte) val;
             if ((val >>>= Byte.SIZE) != 0) {
                 byte g = (byte) val;
@@ -234,7 +234,7 @@ public final class Integers {
         switch (len) {
         case 1:
             byte lead = buffer[offset];
-            if(!lenient && lead == 0) {
+            if (!lenient && lead == 0) {
                 throw leadingZeroException(offset, len);
             }
             return lead;
@@ -262,7 +262,7 @@ public final class Integers {
         case 2: val = buffer[offset+1] & 0xFF; shiftAmount = Byte.SIZE;
         case 1:
             byte lead = buffer[offset];
-            if(!lenient && lead == 0) {
+            if (!lenient && lead == 0) {
                 throw leadingZeroException(offset, len);
             }
             val |= (lead & 0xFF) << shiftAmount;
@@ -362,7 +362,7 @@ public final class Integers {
      * @return the byte length
      */
     public static int len(short val) {
-        if(val != 0)
+        if (val != 0)
             if (val >> Byte.SIZE != 0)
                 return 2;
             else return 1;
@@ -416,7 +416,7 @@ public final class Integers {
     }
 
     public static int len(BigInteger val) {
-        return roundLengthUp(val.bitLength(), Byte.SIZE) / Byte.SIZE;
+        return (val.bitLength() + 7) >>> 3; // roundLengthUp(val.bitLength(), Byte.SIZE) / Byte.SIZE;
     }
 
     /**
@@ -430,26 +430,27 @@ public final class Integers {
     }
 
     public static BigInteger getBigInt(byte[] buffer, int offset, int len, boolean lenient) {
-        if(len != 0) {
-            if(!lenient && buffer[offset] == 0x00) {
+        if (len != 0) {
+            if (!lenient && buffer[offset] == 0x00) {
                 throw leadingZeroException(offset, len);
             }
-            byte[] arr = new byte[Byte.BYTES + len]; // a leading zero byte
-            System.arraycopy(buffer, offset, arr, Byte.BYTES, len);
-            return new BigInteger(arr);
+            byte[] arr = new byte[len];
+            System.arraycopy(buffer, offset, arr, 0, len);
+//            return new BigInteger(1, buffer, offset, len); // Java 9+
+            return new BigInteger(1, arr);
         }
         return BigInteger.ZERO;
     }
 
     public static int putBigInt(BigInteger val, byte[] dest, int destIdx) {
-        byte[] bytes = val.toByteArray();
-        int srcPos = 0;
+        final byte[] bytes = val.toByteArray();
         int len = bytes.length;
-        if(bytes[0] == 0x00) {
-            srcPos++;
+        if (bytes[0] == 0x00) {
             len--;
+            System.arraycopy(bytes, 1, dest, destIdx, len);
+        } else {
+            System.arraycopy(bytes, 0, dest, destIdx, len);
         }
-        System.arraycopy(bytes, srcPos, dest, destIdx, len);
         return len;
     }
 
@@ -466,8 +467,7 @@ public final class Integers {
      * @return the rounded-up value
      */
     public static int roundLengthUp(int len, int powerOfTwo) {
-        int mod = mod(len, powerOfTwo);
-        return mod != 0 ? len + (powerOfTwo - mod) : len;
+        return -powerOfTwo & (len + (powerOfTwo - 1));
     }
 
     public static boolean isMultiple(int val, int powerOfTwo) {
@@ -475,7 +475,7 @@ public final class Integers {
     }
 
     public static void checkIsMultiple(int val, int powerOfTwo) {
-        if(!isMultiple(val, powerOfTwo)) {
+        if (!isMultiple(val, powerOfTwo)) {
             throw new IllegalArgumentException("expected length mod " + powerOfTwo + " == 0, found: " + (val % powerOfTwo));
         }
     }

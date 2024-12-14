@@ -27,13 +27,22 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 
 import static com.esaulpaugh.headlong.TestUtils.assertThrown;
-import static com.esaulpaugh.headlong.rlp.KVP.*;
+import static com.esaulpaugh.headlong.rlp.KVP.EMPTY_ARRAY;
+import static com.esaulpaugh.headlong.rlp.KVP.ID;
+import static com.esaulpaugh.headlong.rlp.KVP.IP;
+import static com.esaulpaugh.headlong.rlp.KVP.IP6;
+import static com.esaulpaugh.headlong.rlp.KVP.SECP256K1;
+import static com.esaulpaugh.headlong.rlp.KVP.TCP;
+import static com.esaulpaugh.headlong.rlp.KVP.TCP6;
+import static com.esaulpaugh.headlong.rlp.KVP.UDP;
+import static com.esaulpaugh.headlong.rlp.KVP.UDP6;
 import static com.esaulpaugh.headlong.util.Strings.ASCII;
 import static com.esaulpaugh.headlong.util.Strings.BASE_64_URL_SAFE;
 import static com.esaulpaugh.headlong.util.Strings.EMPTY_BYTE_ARRAY;
@@ -42,6 +51,7 @@ import static com.esaulpaugh.headlong.util.Strings.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class EIP778Test {
 
@@ -177,7 +187,7 @@ public class EIP778Test {
 
     @Test
     public void testSort() {
-        Random r = TestUtils.seededRandom();
+        final Random r = TestUtils.seededRandom();
         for (int j = 0; j < 50; j++) {
             for (int i = 0; i < 50; i++) {
                 String a = TestUtils.generateASCIIString(j, r);
@@ -191,6 +201,20 @@ public class EIP778Test {
                 }
             }
         }
+        final Record[] records = new Record[] {
+                VECTOR.with(SIGNER, 101L),
+                VECTOR.with(SIGNER, 50L, new KVP(UDP, new byte[0])),
+                VECTOR,
+                VECTOR.with(SIGNER, 99L),
+                VECTOR.with(SIGNER, 0L)
+        };
+        TestUtils.shuffle(records, r);
+        Arrays.sort(records);
+        final StringBuilder sb = new StringBuilder();
+        for (Record e : records) {
+            sb.append(e.getSeq()).append(',');
+        }
+        assertEquals("0,1,50,99,101,", sb.toString());
     }
 
     @Test
@@ -228,22 +252,21 @@ public class EIP778Test {
 
         assertArrayEquals(array, record.getPairs().toArray(EMPTY_ARRAY));
 
-        Map<String, byte[]> map = record.map();
-        assertArrayEquals(Strings.decode("765f"), record.map().get(UDP));
-        assertArrayEquals(Strings.decode("v4", UTF_8), map.get(ID));
-        assertArrayEquals(Strings.decode("03ca634cae0d49acb401d8a4c6b6fe8c55b70d115bf400769cc1400f3258cd3138"), map.get(SECP256K1));
-
-        assertEquals(seq, record.visitAll((k, v) -> {}));
+        final LinkedHashMap<String, RLPItem> map = record.orderedMap();
+        assertEquals("765f", map.get(UDP).asString(HEX));
+        assertEquals("v4", map.get(ID).asString(UTF_8));
+        assertEquals("03ca634cae0d49acb401d8a4c6b6fe8c55b70d115bf400769cc1400f3258cd3138", map.get(SECP256K1).asString(HEX));
 
         final Iterator<KVP> listIter = pairList.iterator();
-        final Iterator<Map.Entry<String, byte[]>> mapIter = map.entrySet().iterator();
+        final Iterator<Map.Entry<String, RLPItem>> mapIter = map.entrySet().iterator();
         int i = 0;
         while (contentIter.hasNext() || listIter.hasNext() || mapIter.hasNext()) {
             final KVP e = array[i];
-            testEqual(e, new KVP(contentIter.next(), contentIter.next()));
+            assertEquals(e.key, e.key());
+            testEqual(e, new KVP(contentIter.next().asRLPString(), contentIter.next().asRLPString()));
             testEqual(e, listIter.next());
-            Map.Entry<String, byte[]> entry = mapIter.next();
-            testEqual(e, new KVP(entry.getKey(), entry.getValue()));
+            Map.Entry<String, RLPItem> entry = mapIter.next();
+            testEqual(e, new KVP(entry.getKey(), entry.getValue().asBytes()));
             testEqual(e, e.withValue(e.value().asBytes()));
             testEqual(e, e.withValue(e.value().asString(HEX), HEX));
             testEqual(e, e.withValue(e.value().asString(UTF_8), UTF_8));
@@ -253,6 +276,17 @@ public class EIP778Test {
         assertEquals(ENR_STRING, record.toString());
 
         assertEquals(record, Record.parse(record.toString(), VERIFIER));
+
+        RLPString prevKey = null;
+        final RLPString dummyValue = RLPDecoder.RLP_STRICT.wrapBits(0L);
+        for (KVP pair : record) {
+            if(prevKey != null) {
+                int c = pair.key.compareTo(prevKey);
+                assertTrue(c > 0);
+                assertEquals(pair.compareTo(new KVP(prevKey, dummyValue)), c);
+            }
+            prevKey = pair.key;
+        }
     }
 
     private static void testEqual(KVP a, KVP b) {
@@ -356,28 +390,28 @@ public class EIP778Test {
     public void testRecordWith() {
         {
             Record with = VECTOR.with(SIGNER, 808L, new KVP(UDP, "0009", HEX));
-            Map<String, byte[]> map = with.map();
+            LinkedHashMap<String, RLPItem> map = with.orderedMap();
             assertEquals(4, map.size());
             assertEquals(808L, with.getSeq());
-            assertArrayEquals(Strings.decode("0009", HEX), map.get(UDP));
+            assertArrayEquals(Strings.decode("0009", HEX), map.get(UDP).asBytes());
         }
 
         Record with = VECTOR.with(SIGNER, 4L, new KVP(TCP6, "656934", HEX));
         assertEquals(4L, with.getSeq());
-        Map<String, byte[]> map = with.map();
+        LinkedHashMap<String, RLPItem> map = with.orderedMap();
         assertEquals(5, map.size());
-        assertArrayEquals(Strings.decode("656934", HEX), map.get(TCP6));
+        assertArrayEquals(Strings.decode("656934", HEX), map.get(TCP6).asBytes());
     }
 
     @Test
     public void testRecordWith2() throws Throwable {
-        assertEquals(4L, VECTOR.map().size());
+        assertEquals(4L, VECTOR.orderedMap().size());
 
         Record with = VECTOR.with(SIGNER, Long.MAX_VALUE, new KVP(UDP6, "8007", HEX), new KVP(IP6, "ff00ff00", HEX));
-        Map<String, byte[]> map = with.map();
+        LinkedHashMap<String, RLPItem> map = with.orderedMap();
         assertEquals(6, map.size());
         assertEquals(Long.MAX_VALUE, with.getSeq());
-        assertArrayEquals(Strings.decode("8007", HEX), map.get(UDP6));
+        assertArrayEquals(Strings.decode("8007", HEX), map.get(UDP6).asBytes());
 
         TestUtils.assertThrown(IllegalArgumentException.class, "duplicate key: tcp", () -> with.with(SIGNER, 0L, new KVP(TCP, "blah", ASCII), new KVP(TCP, "bleh", ASCII)));
     }
@@ -423,5 +457,25 @@ public class EIP778Test {
                 new KVP(SECP256K1, "03ca634cae0d49acb401d8a4c6b6fe8c55b70d115bf400769cc1400f3258cd3138", HEX));
 
         assertEquals(RECORD_HEX, Strings.encode(bb));
+    }
+
+    @Test
+    public void testMissingPrefix() throws Throwable {
+        assertThrown(IllegalArgumentException.class, "prefix \"enr:\" not found", () -> Record.parse("abcd", VERIFIER));
+    }
+
+    @Test
+    public void testOutOfOrder() throws Throwable {
+        String enr =    "enr:-IS4QHCYrYZbAKWCBRlAy5zzaDZXJBGkcnh4MHcBFZntXNFrdvJjX04jRzjzCBOonrkTfj499SZuOh8R33Ls8RRc" +
+                        "y5wBgmlwhH8AAAGDdWRwgnZfgmlkgnY0iXNlY3AyNTZrMaEDymNMrg1JrLQB2KTGtv6MVbcNEVv0AHacwUAPMljNMTg";
+        assertThrown(IllegalArgumentException.class,
+                "key out of order",
+                () -> Record.parse(enr, VERIFIER));
+    }
+
+    @Test
+    public void testToString() {
+        assertEquals("ip --> 3235352e3130312e302e313238", new KVP(IP, "255.101.0.128", ASCII).toString());
+        assertEquals("client --> [\"dd\", \"\"]", new KVP(KVP.CLIENT, RLPDecoder.RLP_STRICT.wrapBits(0xc482646480L)).toString());
     }
 }

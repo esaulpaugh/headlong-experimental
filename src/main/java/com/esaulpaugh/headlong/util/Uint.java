@@ -13,9 +13,7 @@
    See the License for the specific language governing permissions and
    limitations under the License.
 */
-package com.esaulpaugh.headlong.abi.util;
-
-import com.esaulpaugh.headlong.util.Integers;
+package com.esaulpaugh.headlong.util;
 
 import java.math.BigInteger;
 
@@ -24,45 +22,43 @@ import java.math.BigInteger;
  */
 public final class Uint {
 
-    private static final int MAX_BIT_LEN = 4096; // DoS protection
-
-    private static final long ZERO = 0L;
+    /* denial-of-service protection. prevent huge allocations in case numBits is untrusted. */
+    private static final int MAX_BIT_LEN = 8192;
 
     public final int numBits;
     public final BigInteger range; // always greater than 0
     public final long rangeLong;
     public final BigInteger halfRange;
     public final long halfRangeLong;
-    public final long maskLong;
 
     public Uint(int numBits) {
-        if(numBits < 0) {
-            throw new IllegalArgumentException("numBits must be non-negative");
-        }
-        if(numBits > MAX_BIT_LEN) {
-            throw new IllegalArgumentException("numBits exceeds limit: " + numBits + " > " + MAX_BIT_LEN);
-        }
         this.numBits = numBits;
-        this.range = BigInteger.ONE.shiftLeft(numBits); // BigInteger.ONE.pow(numBits)
-        long rangeLong = ZERO, halfRangeLong = ZERO, maskLong = ZERO;
-        if(range.bitLength() < Long.SIZE) {
-            rangeLong = range.longValue();
-            halfRangeLong = rangeLong >> 1;
-            maskLong = rangeLong - 1;
+        if (numBits < 63) {
+            if (numBits <= 0) {
+                throw new IllegalArgumentException("numBits must be positive");
+            }
+            this.rangeLong = 1L << numBits;
+            this.range = BigInteger.valueOf(this.rangeLong);
+            this.halfRangeLong = this.rangeLong >> 1;
+            this.halfRange = BigInteger.valueOf(this.halfRangeLong);
+        } else {
+            if (numBits > MAX_BIT_LEN) {
+                throw new IllegalArgumentException("numBits exceeds limit: " + numBits + " > " + MAX_BIT_LEN);
+            }
+            this.range = BigInteger.ONE.shiftLeft(numBits);
+            this.halfRange = BigInteger.ONE.shiftLeft(numBits - 1);
+            this.rangeLong = 0L;
+            this.halfRangeLong = 0L;
         }
-        this.rangeLong = rangeLong;
-        this.halfRange = range.shiftRight(1);
-        this.halfRangeLong = halfRangeLong;
-        this.maskLong = maskLong;
     }
 
     public long toSignedLong(long unsigned) {
-        if(rangeLong != ZERO) {
-            if(unsigned < 0) {
-                throw new IllegalArgumentException("unsigned value is negative: " + unsigned);
+        if (rangeLong != 0L) {
+            if (unsigned < 0) {
+                throw new IllegalArgumentException("input must be non-negative");
             }
             final int bitLen = Integers.bitLen(unsigned);
-            if(bitLen <= numBits) {
+            if (bitLen <= numBits) {
                 // if in upper half of range, subtract range
                 return unsigned >= halfRangeLong
                         ? unsigned - rangeLong
@@ -74,11 +70,11 @@ public final class Uint {
     }
 
     public BigInteger toSigned(BigInteger unsigned) {
-        if(unsigned.compareTo(BigInteger.ZERO) < 0) {
-            throw new IllegalArgumentException("unsigned value is negative: " + unsigned);
+        if (unsigned.compareTo(BigInteger.ZERO) < 0) {
+            throw new IllegalArgumentException("input must be non-negative");
         }
         final int bitLen = unsigned.bitLength();
-        if(bitLen <= numBits) {
+        if (bitLen <= numBits) {
             // if in upper half of range, subtract range
             return unsigned.compareTo(halfRange) >= 0
                     ? unsigned.subtract(range)
@@ -88,10 +84,10 @@ public final class Uint {
     }
 
     public long toUnsignedLong(long signed) {
-        if(maskLong != ZERO) {
+        if (numBits < 63) {
             final int bitLen = Integers.bitLen(signed < 0 ? ~signed : signed);
-            if(bitLen < numBits) {
-                return signed & maskLong;
+            if (bitLen < numBits) {
+                return signed & (rangeLong - 1);
             }
             throw tooManyBitsException(bitLen, numBits, true);
         }
@@ -104,7 +100,7 @@ public final class Uint {
 
     public BigInteger toUnsigned(BigInteger signed) {
         final int bitLen = signed.bitLength();
-        if(bitLen < numBits) {
+        if (bitLen < numBits) {
             return signed.compareTo(BigInteger.ZERO) >= 0
                     ? signed
                     : signed.add(range);

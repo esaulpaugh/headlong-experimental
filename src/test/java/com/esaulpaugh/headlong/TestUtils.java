@@ -16,76 +16,170 @@
 package com.esaulpaugh.headlong;
 
 import com.esaulpaugh.headlong.abi.Address;
-import com.esaulpaugh.headlong.util.FastHex;
 import com.esaulpaugh.headlong.util.Integers;
 import com.esaulpaugh.headlong.util.Strings;
+import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.internal.Streams;
+import com.google.gson.stream.JsonReader;
 import org.junit.jupiter.api.Assertions;
 
 import java.io.IOException;
+import java.io.StringReader;
 import java.math.BigInteger;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Random;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.Future;
 import java.util.concurrent.RecursiveAction;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.regex.Pattern;
+import java.util.function.IntConsumer;
 
-public class TestUtils {
+import static com.esaulpaugh.headlong.TestUtils.ParallelMode.COMMON;
+import static com.esaulpaugh.headlong.TestUtils.ParallelMode.FIXED;
+import static com.esaulpaugh.headlong.TestUtils.ParallelMode.WORK_STEALING;
 
-    public static boolean shutdownAwait(ExecutorService exec, long timeoutSeconds) throws InterruptedException {
-        exec.shutdown();
-        return exec.awaitTermination(timeoutSeconds, TimeUnit.SECONDS);
-    }
+public final class TestUtils {
 
-    public static void requireNoTimeout(boolean noTimeout) throws TimeoutException {
-        if(!noTimeout) {
-            throw new TimeoutException("not very Timely!!");
-        }
+    private TestUtils() {}
+
+    private static final class SecureRandomHolder {
+        static final SecureRandom SR = new SecureRandom();
     }
 
     public static Random seededRandom() {
-        return new Random(getSeed());
+        return ThreadLocalRandom.current();
     }
 
     public static long getSeed() {
-        return getSeed(System.nanoTime());
+        return SecureRandomHolder.SR.nextLong();
     }
 
+    /**
+     * Use {@link java.security.SecureRandom} instead.
+     *
+     * @param protoseed arbitrary bits, e.g. {@code ThreadLocalRandom.current().nextLong()}
+     * @return  a short (64-bit), low-quality seed suitable for non-cryptographic uses like fuzz testing or monte carlo simulation
+     */
     public static long getSeed(final long protoseed) {
-        long c = protoseed * (System.nanoTime() << 1) * -System.nanoTime();
+        final Runtime runtime = Runtime.getRuntime();
+        final long oldFree = runtime.freeMemory();
+        final Thread t = Thread.currentThread();
+        final ThreadGroup group = t.getThreadGroup();
+        final long[] vals = new long[] {
+                runtime.hashCode(),         runtime.totalMemory(),      runtime.availableProcessors(),
+                new Object().hashCode(),    oldFree,                    Double.doubleToLongBits(Math.random()),
+                t.getId(),                  protoseed,                  ThreadLocalRandom.current().nextLong(),
+                t.hashCode(),               t.getName().hashCode(),     t.getContextClassLoader().hashCode(),
+                t.getPriority(),            System.currentTimeMillis(), System.identityHashCode(new String()),
+                group.hashCode(),           System.nanoTime(),          new Throwable().hashCode(),
+                group.activeCount(),        System.identityHashCode(BigInteger.valueOf(System.nanoTime()))
+        };
+        long c = System.identityHashCode(vals) + runtime.freeMemory();
+        for (long v : vals) {
+            c = 31 * c + v;
+        }
         c ^= c >> 32;
         return c ^ (c << 33);
     }
 
-    public static long pickRandom(Random r) {
-        return pickRandom(r, 1 + r.nextInt(Long.BYTES), false);
+    public static long getEnvHash() {
+        final Object env = System.getenv();
+        long hash = env.hashCode();
+        hash = 31L * hash + System.identityHashCode(env);
+        hash = 31L * hash + System.getProperty("java.version").hashCode();
+        hash = 31L * hash + System.getProperty("os.arch").hashCode();
+        hash = 31L * hash + System.getProperty("os.version").hashCode();
+        return hash;
     }
 
-    public static long pickRandom(Random r, int byteLen, boolean unsigned) {
+    public static long pickLong(Random r) {
+        return pickLong(r, 1 + r.nextInt(Long.BYTES), false);
+    }
+
+    public static long pickLong(Random r, int byteLen, boolean unsigned) {
         long val = r.nextLong();
         switch (byteLen) {
-        case 1 -> val &= 0xFFL;
-        case 2 -> val &= 0xFFFFL;
-        case 3 -> val &= 0xFFFFFFL;
-        case 4 -> val &= 0xFFFFFFFFL;
-        case 5 -> val &= 0xFFFFFFFFFFL;
-        case 6 -> val &= 0xFFFFFFFFFFFFL;
-        case 7 -> val &= 0xFFFFFFFFFFFFFFL;
-        case 8 -> {}
-        default -> throw new IllegalArgumentException("byteLen out of range");
+        case 1: val &= 0xFFL; break;
+        case 2: val &= 0xFFFFL; break;
+        case 3: val &= 0xFFFFFFL; break;
+        case 4: val &= 0xFFFFFFFFL; break;
+        case 5: val &= 0xFFFFFFFFFFL; break;
+        case 6: val &= 0xFFFFFFFFFFFFL; break;
+        case 7: val &= 0xFFFFFFFFFFFFFFL; break;
+        case 8: break;
+        default: throw new IllegalArgumentException("byteLen out of range");
         }
-        if(unsigned) {
-            return val < 0 ? ~val : val;
+        return (unsigned && val < 0) || r.nextBoolean() ? ~val : val;
+    }
+
+    public static long wildLong(Random r) {
+        return wildLong(r, false, Long.SIZE);
+    }
+
+    public static long wildLong(Random r, boolean unsigned, int bitLength) {
+        return uniformLong(r, unsigned, r.nextInt(1 + bitLength));
+    }
+
+    public static long uniformLong(boolean unsigned, int bitLength) {
+        return uniformLong(ThreadLocalRandom.current(), unsigned, bitLength);
+    }
+
+    public static long uniformLong(Random r, boolean unsigned, int bitLength) {
+        if (bitLength == 0) {
+            return 0L;
         }
-        return r.nextBoolean() ? val : ~val;
+        final long val = r.nextLong();
+        if (unsigned) {
+            if (bitLength >= Long.SIZE - 1) {
+                if (bitLength == Long.SIZE - 1) {
+                    return val < 0 ? ~val : val;
+                }
+                throw new IllegalArgumentException("too many bits for unsigned: " + bitLength);
+            }
+            return val & ((1L << bitLength) - 1);
+        }
+        if (bitLength >= Long.SIZE) {
+            if (bitLength == Long.SIZE) {
+                return val;
+            }
+            throw new IllegalArgumentException("too many bits for signed: " + bitLength);
+        }
+        final long maskedUnsigned = val & ((1L << (bitLength - 1)) - 1); // r.nextLong(1L << (bitLength - 1));
+        return r.nextBoolean() ? ~maskedUnsigned : maskedUnsigned;
+    }
+
+    public static BigInteger wildBigInteger(Random r, boolean unsigned, int bitLength) {
+        return uniformBigInteger(r, unsigned, r.nextInt(1 + bitLength));
+    }
+
+    public static BigInteger wildBigInteger(Random r, boolean unsigned, int minBitLen, int maxBitLen) {
+        return uniformBigInteger(r, unsigned, minBitLen + r.nextInt(1 + (maxBitLen - minBitLen)));
+    }
+
+    public static BigInteger uniformBigInteger(Random r, boolean unsigned, int bitLength) {
+        if (bitLength == 0) {
+            return BigInteger.ZERO;
+        }
+        if (unsigned) {
+            return new BigInteger(bitLength, r);
+        }
+        final BigInteger unsignedVal = new BigInteger(bitLength - 1, r);
+        return r.nextBoolean() ? unsignedVal : unsignedVal.not();
     }
 
     public static void shuffle(Object[] arr, Random rand) {
@@ -99,9 +193,9 @@ public class TestUtils {
 
     public static void sort(int[] arr) {
         int j = 1;
-        while(j < arr.length) {
+        while (j < arr.length) {
             int i = j - 1, v = arr[j], v2;
-            while(i >= 0 && v < (v2 = arr[i])) {
+            while (i >= 0 && v < (v2 = arr[i])) {
                 arr[i-- + 1] = v2;
             }
             arr[i + 1] = v;
@@ -110,7 +204,7 @@ public class TestUtils {
     }
 
     public static byte[] randomBytes(int n) {
-        return randomBytes(n, TestUtils.seededRandom());
+        return randomBytes(n, seededRandom());
     }
 
     public static byte[] randomBytes(int n, Random r) {
@@ -119,12 +213,13 @@ public class TestUtils {
         return random;
     }
 
+    @SuppressWarnings("deprecation")
     public static String generateASCIIString(final int len, Random r) {
-        StringBuilder sb = new StringBuilder();
-        for(int i = 0; i < len; i++) {
-            sb.append((char) (r.nextInt(95) + 32));
+        byte[] bytes = new byte[len];
+        for (int i = 0; i < len; i++) {
+            bytes[i] = (byte) (r.nextInt(95) + 32);
         }
-        return sb.toString();
+        return new String(bytes, 0, 0, len);
     }
 
     public static void printAndReset(StringBuilder sb) {
@@ -138,7 +233,7 @@ public class TestUtils {
 
     public static String readFileResourceAsString(ClassLoader classLoader, String resourceName) throws IOException {
         URL url = classLoader.getResource(resourceName);
-        if(url == null) {
+        if (url == null) {
             throw new IOException("resource not found");
         }
         try {
@@ -153,7 +248,7 @@ public class TestUtils {
             return Integers.toBytes(parseLong(in));
         } catch (NumberFormatException | IllegalStateException e) {
             String inString = in.getAsString();
-            if(inString.startsWith("#")) {
+            if (inString.startsWith("#")) {
                 return parseBigInteger(in).toByteArray();
             } else {
                 return parseBytes(inString);
@@ -161,10 +256,10 @@ public class TestUtils {
         }
     }
 
-    public static ArrayList<Object> parseArrayToBytesHierarchy(final JsonArray array) {
-        ArrayList<Object> arrayList = new ArrayList<>();
+    public static List<Object> parseArrayToBytesHierarchy(final JsonArray array) {
+        List<Object> arrayList = new ArrayList<>();
         for (JsonElement element : array) {
-            if(element.isJsonArray()) {
+            if (element.isJsonArray()) {
                 arrayList.add(parseArrayToBytesHierarchy(element.getAsJsonArray()));
             } else if(element.isJsonPrimitive()) {
                 arrayList.add(parsePrimitiveToBytes(element));
@@ -180,7 +275,7 @@ public class TestUtils {
         long[] longs = new long[size];
         for (int i = 0; i < size; i++) {
             JsonElement element = array.get(i);
-            if(element.isJsonPrimitive()) {
+            if (element.isJsonPrimitive()) {
                 longs[i] = parseLong(element);
             } else {
                 throw new Error("unexpected element type");
@@ -194,7 +289,7 @@ public class TestUtils {
     }
 
     public static byte[] parseBytesX(String string, int x) {
-        if(string.length() == x) {
+        if (string.length() == x) {
             byte[] bytesX = new byte[x];
             for (int i = 0; i < x; i++) {
                 bytesX[i] = (byte) string.charAt(i);
@@ -203,6 +298,14 @@ public class TestUtils {
         } else {
             return Strings.decode(string);
         }
+    }
+
+    public static JsonObject parseObject(String json) {
+        return Streams.parse(new JsonReader(new StringReader(json))).getAsJsonObject();
+    }
+
+    public static JsonArray parseArray(String json) {
+        return Streams.parse(new JsonReader(new StringReader(json))).getAsJsonArray();
     }
 
     public static String parseString(JsonElement in) {
@@ -255,11 +358,11 @@ public class TestUtils {
     }
 
     public static void assertThrown(Class<? extends Throwable> clazz, String substr, CustomRunnable r) throws Throwable {
+        Objects.requireNonNull(substr);
         try {
             r.run();
         } catch (Throwable t) {
-            if(clazz.isInstance(t)
-                    && (t.getMessage() == null || t.getMessage().contains(substr))) {
+            if(clazz.isInstance(t) && t.getMessage() != null && t.getMessage().contains(substr)) {
                 return;
             }
             throw t;
@@ -267,14 +370,17 @@ public class TestUtils {
         throw new AssertionError("no " + clazz.getName() + " thrown");
     }
 
-    public static void assertThrownMessageMatch(Class<? extends Throwable> clazz, List<String> messages, CustomRunnable r) throws Throwable {
+    public static void assertThrownWithAnySubstring(Class<? extends Throwable> clazz, List<String> substrings, CustomRunnable r) throws Throwable {
+        Objects.requireNonNull(substrings);
         try {
             r.run();
         } catch (Throwable t) {
-            if(clazz.isInstance(t)) {
+            if (clazz.isInstance(t)) {
                 final String msg = t.getMessage();
-                for(String m : messages) {
-                    if (msg.contains(m)) return;
+                for(String substr : substrings) {
+                    if (msg.contains(substr)) {
+                        return;
+                    }
                 }
             }
             throw t;
@@ -350,7 +456,7 @@ public class TestUtils {
     }
 
     public static int insertBytes(int n, byte[] b, int i, byte w, byte x, byte y, byte z) {
-        if(n <= 4) {
+        if (n <= 4) {
             return insertBytes(n, b, i, (byte) 0, (byte) 0, (byte) 0, (byte) 0, w, x, y, z);
         }
         throw new IllegalArgumentException("n must be <= 4");
@@ -386,13 +492,65 @@ public class TestUtils {
         }
     }
 
-    private static final Pattern WHITESPACE = Pattern.compile("[ \\n]");
-
-    public static String removeWhitespace(String textBlock) {
-        return WHITESPACE.matcher(textBlock).replaceAll("");
+    public static String toPrettyPrint(JsonElement element) {
+        return new GsonBuilder().setPrettyPrinting().create().toJson(element);
     }
 
-    public static byte[] decodeHex(String textBlock) {
-        return FastHex.decode(removeWhitespace(textBlock));
+    public static String completeTupleTypeString(StringBuilder sb) {
+        final int len = sb.length();
+        return len != 1
+                ? sb.deleteCharAt(len - 1).append(')').toString() // replace trailing comma
+                : "()";
+    }
+
+    public static boolean shutdownAwait(ExecutorService exec, long timeoutSeconds) throws InterruptedException {
+        exec.shutdown();
+        return exec.awaitTermination(timeoutSeconds, TimeUnit.SECONDS);
+    }
+
+    public static void requireNoTimeout(boolean noTimeout) throws TimeoutException {
+        if (!noTimeout) {
+            throw new TimeoutException("not very Timely!!");
+        }
+    }
+
+    public static void getFutures(Future<?>[] futures, long timeoutSeconds) throws InterruptedException, ExecutionException, TimeoutException {
+        for (Future<?> f : futures) {
+            f.get(timeoutSeconds, TimeUnit.SECONDS);
+        }
+    }
+
+    public enum ParallelMode {
+        FIXED,
+        WORK_STEALING,
+        COMMON
+    }
+
+    public static ParallelRun parallelRun(int tasks, long timeoutSeconds, IntConsumer test) {
+        return parallelRun(tasks, tasks, COMMON, timeoutSeconds, test);
+    }
+
+    public static ParallelRun parallelRun(int tasks, int threads, ParallelMode mode, long timeoutSeconds, IntConsumer test) {
+        return () -> {
+            final ExecutorService pool = mode == FIXED
+                                                ? Executors.newFixedThreadPool(threads)
+                                                : mode == WORK_STEALING
+                                                    ? Executors.newWorkStealingPool(threads)
+                                                    : ForkJoinPool.commonPool();
+            final Future<?>[] futures = new Future[tasks];
+            for (int i = 0; i < tasks; i++) {
+                final int id = i;
+                futures[i] = pool.submit(() -> test.accept(id));
+            }
+            getFutures(futures, timeoutSeconds);
+            if (pool != ForkJoinPool.commonPool()) {
+                pool.shutdown();
+            }
+        };
+    }
+
+    @FunctionalInterface
+    public interface ParallelRun {
+        void run() throws InterruptedException, ExecutionException, TimeoutException;
     }
 }

@@ -17,7 +17,15 @@ package com.esaulpaugh.headlong.abi;
 
 import java.nio.ByteBuffer;
 
+/** Represents a small integer type such as int8, int32, uint8, or uint24. */
 public final class IntType extends UnitType<Integer> {
+
+    static final IntType UINT21 = new IntType("uint21", 21, true); // small bit length for Denial-of-Service protection
+    static final IntType UINT30 = new IntType("uint30", 30, true);
+
+    static {
+        UnitType.initInstances(); // will prevent creation of new UnitTypes once finished (except BigDecimalType)
+    }
 
     IntType(String canonicalType, int bitLength, boolean unsigned) {
         super(canonicalType, Integer.class, bitLength, unsigned);
@@ -35,13 +43,10 @@ public final class IntType extends UnitType<Integer> {
 
     @Override
     Integer decode(ByteBuffer bb, byte[] unitBuffer) {
-        return decodeValid(bb, unitBuffer).intValue();
-    }
-
-    @Override
-    public Integer parseArgument(String s) {
-        Integer in = Integer.parseInt(s);
-        validate(in);
-        return in;
+        return (int) (
+                    unsigned
+                        ? decodeUnsignedLong(bb)
+                        : decodeSignedLong(bb)
+                );
     }
 }

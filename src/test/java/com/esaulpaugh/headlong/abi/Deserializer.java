@@ -13,36 +13,34 @@
    See the License for the specific language governing permissions and
    limitations under the License.
 */
-package com.esaulpaugh.headlong.abi.util;
+package com.esaulpaugh.headlong.abi;
 
-import com.esaulpaugh.headlong.abi.ABIType;
-import com.esaulpaugh.headlong.abi.Address;
-import com.esaulpaugh.headlong.abi.ArrayType;
-import com.esaulpaugh.headlong.abi.BigDecimalType;
-import com.esaulpaugh.headlong.abi.BigIntegerType;
-import com.esaulpaugh.headlong.abi.Tuple;
-import com.esaulpaugh.headlong.abi.TupleType;
 import com.esaulpaugh.headlong.util.FastHex;
+import com.esaulpaugh.headlong.util.Uint;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.internal.Streams;
+import com.google.gson.stream.JsonReader;
 
-import java.lang.reflect.Array;
+import java.io.StringReader;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.Iterator;
 
 public class Deserializer {
 
-    public static TupleType parseTupleType(String ttStr) {
-        return parseTupleType(JsonUtils.parseArray(ttStr));
+    private Deserializer() {}
+
+    public static <X extends Tuple> TupleType<X> parseTupleType(String ttStr) {
+        return parseTupleType(Streams.parse(new JsonReader(new StringReader(ttStr))).getAsJsonArray());
     }
 
-    public static Tuple parseTupleValue(TupleType tupleType, String tupleStr) {
-        return parseTupleValue(tupleType, JsonUtils.parseArray(tupleStr));
+    public static <T extends Tuple> T parseTupleValue(TupleType<?> tupleType, String tupleStr) {
+        return parseTupleValue(tupleType, Streams.parse(new JsonReader(new StringReader(tupleStr))).getAsJsonArray());
     }
 
-    public static TupleType parseTupleType(JsonArray typesArray) {
+    public static <X extends Tuple> TupleType<X> parseTupleType(JsonArray typesArray) {
         final int len = typesArray.size();
         String[] typeStrings = new String[len];
         for (int i = 0; i < len; i++) {
@@ -51,52 +49,52 @@ public class Deserializer {
         return TupleType.of(typeStrings);
     }
 
-    public static Tuple parseTupleValue(TupleType tupleType, JsonArray valuesArray) {
+    public static <T extends Tuple> T parseTupleValue(TupleType<?> tupleType, JsonArray valuesArray) {
         final int len = tupleType.size();
         Object[] elements = new Object[len];
         int i = 0;
         for (Iterator<JsonElement> iter = valuesArray.iterator(); i < len; i++) {
             elements[i] = parseValue(tupleType.get(i), iter.next());
         }
-        return new Tuple(elements);
+        return Tuple.from(elements);
     }
 
     private static Object parseValue(final ABIType<?> type, final JsonElement value) {
         final int typeCode = type.typeCode();
         if(typeCode == ABIType.TYPE_CODE_ARRAY) {
-            return parseArrayValue((ArrayType<? extends ABIType<?>, ?>) type, value);
+            return parseArrayValue(type.asArrayType(), value);
         }
         final JsonObject valueObj = value.getAsJsonObject();
         final JsonElement valVal = valueObj.get("value");
-        return switch (typeCode) {
-        case ABIType.TYPE_CODE_BOOLEAN -> valVal.getAsBoolean();
-        case ABIType.TYPE_CODE_BYTE -> (byte) valVal.getAsInt();
-        case ABIType.TYPE_CODE_INT -> valVal.getAsInt();
-        case ABIType.TYPE_CODE_LONG -> Long.parseLong(valVal.getAsString());
-        case ABIType.TYPE_CODE_BIG_INTEGER -> {
+        switch (typeCode) {
+        case ABIType.TYPE_CODE_BOOLEAN: return valVal.getAsBoolean();
+        case ABIType.TYPE_CODE_BYTE: return (byte) valVal.getAsInt();
+        case ABIType.TYPE_CODE_INT: return valVal.getAsInt();
+        case ABIType.TYPE_CODE_LONG: return Long.parseLong(valVal.getAsString());
+        case ABIType.TYPE_CODE_BIG_INTEGER: {
             String valueType = valueObj.get("type").getAsString();
             String valStr = valVal.getAsString();
             if ("string".equals(valueType)) {
                 BigIntegerType bigIntType = (BigIntegerType) type;
                 BigInteger val = new BigInteger(FastHex.decode(valStr, 2, valStr.length() - 2));
                 if (bigIntType.isUnsigned()) {
-                    yield new Uint(bigIntType.getBitLength()).toUnsigned(val);
+                    return new Uint(bigIntType.getBitLength()).toUnsigned(val);
                 }
-                yield val;
+                return val;
             } else {
-                yield new BigInteger(valStr);
+                return new BigInteger(valStr);
             }
         }
-        case ABIType.TYPE_CODE_BIG_DECIMAL -> new BigDecimal(
+        case ABIType.TYPE_CODE_BIG_DECIMAL: return new BigDecimal(
                 new BigInteger(valVal.getAsString()), ((BigDecimalType) type).getScale()
         );
-        case ABIType.TYPE_CODE_TUPLE -> parseTupleValue((TupleType) type, valVal.getAsJsonArray());
-        case ABIType.TYPE_CODE_ADDRESS -> Address.wrap(valVal.getAsString());
-        default -> throw new Error();
-        };
+        case ABIType.TYPE_CODE_TUPLE: return parseTupleValue(type.asTupleType(), valVal.getAsJsonArray());
+        case ABIType.TYPE_CODE_ADDRESS: return Address.wrap(valVal.getAsString());
+        default: throw new Error();
+        }
     }
 
-    private static Object parseArrayValue(final ArrayType<?, ?> arrayType, final JsonElement value) {
+    private static Object parseArrayValue(final ArrayType<?, ?, ?> arrayType, final JsonElement value) {
         if (value.isJsonArray()) {
             JsonArray valArr = value.getAsJsonArray();
             final int len = valArr.size();
@@ -126,7 +124,7 @@ public class Deserializer {
                     array[i] = (long) parseValue(elementType, iter.next());
                 }
             } else {
-                Object[] array = (Object[]) (arrayObj = Array.newInstance(clazz, len));
+                Object[] array = (Object[]) (arrayObj = ArrayType.createArray(clazz, len));
                 for (; i < len; i++) {
                     array[i] = parseValue(elementType, iter.next());
                 }

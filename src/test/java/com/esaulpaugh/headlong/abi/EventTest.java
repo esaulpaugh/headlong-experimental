@@ -15,8 +15,10 @@
 */
 package com.esaulpaugh.headlong.abi;
 
+import com.esaulpaugh.headlong.util.FastHex;
 import org.junit.jupiter.api.Test;
 
+import static com.esaulpaugh.headlong.TestUtils.assertThrown;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -28,14 +30,42 @@ public class EventTest {
         final String name = "ahoy";
         final boolean[] indexed = new boolean[] { false, false, true, false, true };
         final String paramsString ="(int,uint,(),bool[],ufixed256x10)";
-        Event event = Event.create(name, TupleType.parse(paramsString), indexed);
+        Event<?> event = Event.create(name, TupleType.parse(paramsString), indexed);
 
+        assertEquals(TypeEnum.EVENT, event.getType());
         assertEquals(name, event.getName());
         assertEquals(TupleType.parse(paramsString), event.getInputs());
         assertArrayEquals(indexed, event.getIndexManifest());
+        for (int i = 0; i < indexed.length; i++) {
+            assertEquals(indexed[i], event.isElementIndexed(i));
+        }
         assertFalse(event.isAnonymous());
 
         assertEquals(TupleType.parse("((),ufixed256x10)"), event.getIndexedParams());
         assertEquals(TupleType.parse("(int256,uint256,bool[])"), event.getNonIndexedParams());
+    }
+
+    private static final String EVENT_JSON = "{\n" +
+            "    \"type\": \"event\",\n" +
+            "    \"name\": \"an_event\",\n" +
+            "    \"inputs\": [\n" +
+            "      {\n" +
+            "        \"name\": \"a\",\n" +
+            "        \"type\": \"bytes\",\n" +
+            "        \"indexed\": true\n" +
+            "      },\n" +
+            "      {\n" +
+            "        \"name\": \"b\",\n" +
+            "        \"type\": \"uint256\",\n" +
+            "        \"indexed\": false\n" +
+            "      }\n" +
+            "    ]\n" +
+            "  }";
+
+    @Test
+    public void testTrailingBytes() throws Throwable {
+        assertThrown(IllegalArgumentException.class,
+                "unconsumed bytes: 2 remaining",
+                () -> Event.fromJson(EVENT_JSON).decodeData(FastHex.decode("000000000000000000000000000000000000000000000000000000000000ffff0d0c")));
     }
 }

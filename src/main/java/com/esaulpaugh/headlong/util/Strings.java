@@ -17,8 +17,9 @@ package com.esaulpaugh.headlong.util;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 
-/** Utility for encoding and decoding hexadecimal, Base64, and UTF-8-encoded {@link String}s. */
+/** Utility for encoding and decoding hexadecimal, UTF-8, URL-safe Base64, and ASCII {@link String}s. */
 public final class Strings {
 
     private Strings() {}
@@ -30,14 +31,19 @@ public final class Strings {
     public static final int BASE_64_URL_SAFE = 2; // 64
     public static final int ASCII = 3; // 128
 
-    public static final int URL_SAFE_FLAGS = FastBase64.URL_SAFE_CHARS | FastBase64.NO_LINE_SEP | FastBase64.NO_PADDING;
-
     public static String encode(byte b) {
         return encode(new byte[] { b });
     }
 
-    public static String encode(ByteBuffer buffer) {
-        return encode(buffer.array());
+    public static String encode(ByteBuffer buf) {
+        if (buf.hasArray()) {
+            return encode(buf.array());
+        } else {
+            final int pos = buf.position();
+            byte[] bytes = new byte[buf.position(0).limit()];
+            buf.get(bytes).position(pos);
+            return encode(bytes);
+        }
     }
 
     public static String encode(byte[] bytes) {
@@ -49,29 +55,29 @@ public final class Strings {
     }
 
     public static String encode(byte[] buffer, int from, int len, int encoding) {
-        return switch (encoding) {
-            case HEX -> FastHex.encodeToString(buffer, from, len);
-            case UTF_8 -> new String(buffer, from, len, StandardCharsets.UTF_8);
-            case BASE_64_URL_SAFE -> FastBase64.encodeToString(buffer, from, len, URL_SAFE_FLAGS);
-            case ASCII -> new String(buffer, from, len, StandardCharsets.US_ASCII);
-            default -> throw new UnsupportedOperationException();
-        };
+        switch (encoding) {
+        case HEX: return FastHex.encodeToString(buffer, from, len);
+        case UTF_8: return new String(buffer, from, len, StandardCharsets.UTF_8);
+        case BASE_64_URL_SAFE: return FastBase64.encodeToString(buffer, from, len, FastBase64.URL_SAFE_CHARS | FastBase64.NO_LINE_SEP | FastBase64.NO_PADDING);
+        case ASCII: return new String(buffer, from, len, StandardCharsets.US_ASCII);
+        default: throw new UnsupportedOperationException();
+        }
     }
 
-    public static byte[] decode(String encoded) {
-        return decode(encoded, HEX);
+    public static byte[] decode(String hex) {
+        return decode(hex, HEX);
     }
 
-    public static byte[] decode(String string, int encoding) {
-        if(string.isEmpty()) {
+    public static byte[] decode(String str, int encoding) {
+        if (str.isEmpty()) {
             return EMPTY_BYTE_ARRAY;
         }
-        return switch (encoding) {
-            case HEX -> FastHex.decode(string, 0, string.length());
-            case UTF_8 -> string.getBytes(StandardCharsets.UTF_8);
-            case BASE_64_URL_SAFE -> java.util.Base64.getUrlDecoder().decode(string);
-            case ASCII -> string.getBytes(StandardCharsets.US_ASCII);
-            default -> throw new UnsupportedOperationException();
-        };
+        switch (encoding) {
+        case HEX: return FastHex.decode(str, 0, str.length());
+        case UTF_8: return str.getBytes(StandardCharsets.UTF_8);
+        case BASE_64_URL_SAFE: return Base64.getUrlDecoder().decode(str);
+        case ASCII: return str.getBytes(StandardCharsets.US_ASCII);
+        default: throw new UnsupportedOperationException();
+        }
     }
 }

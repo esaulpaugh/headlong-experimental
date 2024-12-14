@@ -15,36 +15,47 @@
 */
 package com.esaulpaugh.headlong.abi;
 
-import com.esaulpaugh.headlong.abi.util.JsonUtils;
-import com.google.gson.JsonObject;
+import com.esaulpaugh.headlong.util.FastHex;
+import com.esaulpaugh.headlong.util.Strings;
+import com.joemelsha.crypto.hash.Keccak;
 
+import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.Objects;
 
 /** Represents an event in Ethereum. */
-public final class Event implements ABIObject {
+public final class Event<J extends Tuple> implements ABIObject {
+
+    private static final ArrayType<ByteType, Byte, byte[]> BYTES_32 = TypeFactory.create("bytes32");
+    public static final byte[][] EMPTY_TOPICS = new byte[0][];
 
     private final String name;
     private final boolean anonymous;
-    private final TupleType inputs;
+    private final TupleType<J> inputs;
+    private final TupleType<?> indexedParams;
+    private final TupleType<?> nonIndexedParams;
     private final boolean[] indexManifest;
+    private final byte[] signatureHash;
 
-    public static Event create(String name, TupleType inputs, boolean... indexed) {
-        return new Event(name, false, inputs, indexed);
+    public static <X extends Tuple> Event<X> create(String name, TupleType<X> inputs, boolean... indexed) {
+        return new Event<>(name, false, inputs, indexed);
     }
 
-    public static Event createAnonymous(String name, TupleType inputs, boolean... indexed) {
-        return new Event(name, true, inputs, indexed);
+    public static <X extends Tuple> Event<X> createAnonymous(String name, TupleType<X> inputs, boolean... indexed) {
+        return new Event<>(name, true, inputs, indexed);
     }
 
-    public Event(String name, boolean anonymous, TupleType inputs, boolean... indexed) {
+    public Event(String name, boolean anonymous, TupleType<J> inputs, boolean... indexed) {
         this.name = Objects.requireNonNull(name);
+        this.anonymous = anonymous;
         this.inputs = Objects.requireNonNull(inputs);
-        if(indexed.length != inputs.size()) {
+        if (indexed.length != inputs.size()) {
             throw new IllegalArgumentException("indexed.length doesn't match number of inputs");
         }
         this.indexManifest = Arrays.copyOf(indexed, indexed.length);
-        this.anonymous = anonymous;
+        this.indexedParams = inputs.select(indexManifest);
+        this.nonIndexedParams = inputs.exclude(indexManifest);
+        this.signatureHash = new Keccak(256).digest(Strings.decode(getCanonicalSignature(), Strings.ASCII));
     }
 
     @Override
@@ -57,13 +68,18 @@ public final class Event implements ABIObject {
         return name;
     }
 
+    @SuppressWarnings("unchecked")
     @Override
-    public TupleType getInputs() {
+    public TupleType<J> getInputs() {
         return inputs;
     }
 
     public boolean[] getIndexManifest() {
         return Arrays.copyOf(indexManifest, indexManifest.length);
+    }
+
+    public boolean isElementIndexed(int position) {
+        return indexManifest[position];
     }
 
     public boolean isAnonymous() {
@@ -75,12 +91,19 @@ public final class Event implements ABIObject {
         return name + inputs.canonicalType;
     }
 
-    public TupleType getIndexedParams() {
-        return inputs.subTupleType(indexManifest);
+    @SuppressWarnings("unchecked")
+    public <X extends Tuple> TupleType<X> getIndexedParams() {
+        return (TupleType<X>) indexedParams;
     }
 
-    public TupleType getNonIndexedParams() {
-        return inputs.subTupleTypeNegative(indexManifest);
+    @SuppressWarnings("unchecked")
+    public <X extends Tuple> TupleType<X> getNonIndexedParams() {
+        return (TupleType<X>) nonIndexedParams;
+    }
+
+    @Override
+    public boolean isEvent() {
+        return true;
     }
 
     @Override
@@ -90,19 +113,13 @@ public final class Event implements ABIObject {
 
     @Override
     public boolean equals(Object o) {
-        return o instanceof Event that
-                && this.anonymous == that.anonymous
-                && this.name.equals(that.name)
-                && this.inputs.equals(that.inputs)
-                && Arrays.equals(this.indexManifest, that.indexManifest);
-    }
-
-    public static Event fromJson(String eventJson) {
-        return fromJsonObject(JsonUtils.parseObject(eventJson));
-    }
-
-    public static Event fromJsonObject(JsonObject event) {
-        return ABIJSON.parseEvent(event);
+        if (o == this) return true;
+        if (!(o instanceof Event)) return false;
+        Event<?> other = (Event<?>) o;
+        return other.anonymous == this.anonymous
+                && other.name.equals(this.name)
+                && other.inputs.equals(this.inputs)
+                && Arrays.equals(other.indexManifest, this.indexManifest);
     }
 
     @Override
@@ -110,8 +127,88 @@ public final class Event implements ABIObject {
         return toJson(true);
     }
 
-    @Override
-    public boolean isEvent() {
-        return true;
+    public <T extends Tuple> T decodeTopics(byte[][] topics) {
+        return Tuple.create(decodeTopicsArray(topics));
+    }
+
+    @SuppressWarnings("unchecked")
+    public <T extends Tuple> T decodeData(byte[] data) {
+        return (T) (data == null && nonIndexedParams.isEmpty()
+                        ? Tuple.EMPTY
+                        : nonIndexedParams.decode(data));
+    }
+
+    /**
+     * Decodes Event arguments.
+     *
+     * @param topics indexed parameters to decode. If the event is anonymous, the first element is a Keccak hash of the
+     *               canonical signature of the event (see <a href="https://docs.soliditylang.org/en/v0.8.11/abi-spec.html#events">https://docs.soliditylang.org/en/v0.8.11/abi-spec.html#events</a>)
+     * @param data non-indexed parameters to decode
+     * @return  the decoded arguments
+     */
+    @SuppressWarnings("unchecked")
+    public <T extends Tuple> T decodeArgs(byte[][] topics, byte[] data) {
+        return (T) mergeDecodedArgs(decodeTopicsArray(topics), decodeData(data));
+    }
+
+    private Tuple mergeDecodedArgs(Object[] decodedTopics, Tuple decodedData) {
+        Object[] result = new Object[inputs.size()];
+        for (int i = 0, topicIndex = 0, dataIndex = 0; i < indexManifest.length; i++) {
+            if (indexManifest[i]) {
+                result[i] = decodedTopics[topicIndex++];
+            } else {
+                result[i] = decodedData.get(dataIndex++);
+            }
+        }
+        return Tuple.create(result);
+    }
+
+    private Object[] decodeTopicsArray(byte[][] topics) {
+        checkTopics(topics);
+        final int offset = anonymous ? 0 : 1;
+        final Object[] decodedTopics = new Object[indexedParams.size()];
+        for (int i = 0; i < decodedTopics.length; i++) {
+            ABIType<?> abiType = indexedParams.get(i);
+            byte[] topic = topics[i + offset];
+            if (abiType.isDynamic()) {
+                // Dynamic indexed types are not decodable in Events. Only a special hash is stored for fast querying of records
+                // See https://docs.soliditylang.org/en/v0.8.11/abi-spec.html#indexed-event-encoding
+                decodedTopics[i] = BYTES_32.decode(topic);
+            } else {
+                decodedTopics[i] = abiType.decode(topic);
+            }
+        }
+        return decodedTopics;
+    }
+
+    private void checkTopics(byte[][] topics) {
+        final int size = indexedParams.size();
+        final int expectedTopics;
+        if (anonymous) {
+            if (size == 0 && topics == null) {
+                topics = EMPTY_TOPICS;
+            }
+            expectedTopics = size;
+        } else {
+            final byte[] decodedSignatureHash = BYTES_32.decode(topics[0]);
+            if (!MessageDigest.isEqual(signatureHash, decodedSignatureHash)) {
+                throw new IllegalArgumentException("unexpected topics[0]: event " + getCanonicalSignature()
+                        + " expects " + FastHex.encodeToString(signatureHash)
+                        + " but found " + FastHex.encodeToString(decodedSignatureHash));
+            }
+            expectedTopics = size + 1;
+        }
+        if (topics.length != expectedTopics) {
+            throw new IllegalArgumentException("expected topics.length " + expectedTopics + " but found length " + topics.length);
+        }
+    }
+
+    public static <X extends Tuple> Event<X> fromJson(String eventJson) {
+        return fromJson(ABIType.FLAGS_NONE, eventJson);
+    }
+
+    /** @see ABIObject#fromJson(int, String) */
+    public static <X extends Tuple> Event<X> fromJson(int flags, String eventJson) {
+        return ABIJSON.parseABIObject(eventJson, ABIJSON.EVENTS, null, flags);
     }
 }
